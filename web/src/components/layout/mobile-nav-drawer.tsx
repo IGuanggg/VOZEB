@@ -49,8 +49,8 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
                             onFocus={() => router.prefetch(`/${tool.slug}`)}
                             onClick={onClose}
                             className={cn(
-                                "flex items-center gap-3 rounded-lg px-3 py-3.5 text-[15px] transition",
-                                active ? "bg-stone-100 font-medium text-stone-950 dark:bg-stone-800 dark:text-stone-100" : "text-stone-600 hover:bg-stone-100 hover:text-stone-950 dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-stone-100",
+                                "app-shell-mobile-nav-link flex items-center gap-3 rounded-lg px-3 py-3.5 text-[15px]",
+                                active ? "is-active font-medium text-stone-950 dark:text-stone-100" : "text-stone-600 hover:text-stone-950 dark:text-stone-300 dark:hover:text-stone-100",
                             )}
                         >
                             <Icon className="size-[18px]" />
