@@ -480,38 +480,43 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
                             }
                         />
                         <div className="grid gap-5 p-4 lg:grid-cols-[minmax(0,1fr)_360px] sm:p-5">
-                            <div className="space-y-5 rounded-lg border border-stone-200 bg-stone-50/70 p-4 dark:border-stone-800 dark:bg-stone-900/40">
-                                <SectionTitle icon={<Globe2 className="size-4" />} title="基础信息" />
-                                <div className="grid gap-4 md:grid-cols-2">
-                                    <LabeledControl label="网站标题">
-                                        <Input value={settings.site.title} maxLength={40} placeholder="VOZEB" onChange={(event) => updateSiteSetting("title", event.target.value)} />
-                                    </LabeledControl>
-                                    <LabeledControl label="Logo URL">
-                                        <Input value={settings.site.logoUrl} maxLength={2000} placeholder="/logo.svg 或 https://..." onChange={(event) => updateSiteSetting("logoUrl", event.target.value)} />
-                                    </LabeledControl>
-                                </div>
-                                <div className="rounded-md border border-dashed border-stone-300 bg-white p-3 text-xs leading-5 text-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-400">
-                                    Logo 支持站内路径、远程 URL 或 data:image。Docker 部署时建议使用远程图床或把文件放到镜像内的 public 目录。
-                                </div>
+                            <div className="space-y-5">
+                                <div className="space-y-5 rounded-lg border border-stone-200 bg-stone-50/70 p-4 dark:border-stone-800 dark:bg-stone-900/40">
+                                    <SectionTitle icon={<Globe2 className="size-4" />} title="基础信息" />
+                                    <div className="grid gap-4 md:grid-cols-2">
+                                        <LabeledControl label="网站标题">
+                                            <Input value={settings.site.title} maxLength={40} placeholder="VOZEB" onChange={(event) => updateSiteSetting("title", event.target.value)} />
+                                        </LabeledControl>
+                                        <LabeledControl label="Logo URL">
+                                            <Input value={settings.site.logoUrl} maxLength={2000} placeholder="/logo.svg 或 https://..." onChange={(event) => updateSiteSetting("logoUrl", event.target.value)} />
+                                        </LabeledControl>
+                                    </div>
+                                    <div className="rounded-md border border-dashed border-stone-300 bg-white p-3 text-xs leading-5 text-stone-500 dark:border-stone-700 dark:bg-stone-950 dark:text-stone-400">
+                                        Logo 支持站内路径、远程 URL 或 data:image。Docker 部署时建议使用远程图床或把文件放到镜像内的 public 目录。
+                                    </div>
 
-                                <div className="border-t border-stone-200 pt-5 dark:border-stone-800">
-                                    <SectionTitle icon={<Search className="size-4" />} title="SEO 信息" />
-                                    <div className="mt-4 space-y-4">
-                                        <LabeledControl label="SEO 标题">
-                                            <Input value={settings.site.seoTitle} maxLength={72} placeholder={settings.site.title} onChange={(event) => updateSiteSetting("seoTitle", event.target.value)} />
-                                        </LabeledControl>
-                                        <LabeledControl label="SEO 描述">
-                                            <Input.TextArea value={settings.site.seoDescription} maxLength={180} rows={4} placeholder="用于搜索结果和社交分享摘要" onChange={(event) => updateSiteSetting("seoDescription", event.target.value)} />
-                                        </LabeledControl>
-                                        <LabeledControl label="SEO 关键词">
-                                            <Input value={settings.site.seoKeywords} maxLength={240} placeholder="VOZEB,AI 绘图,无限画布" onChange={(event) => updateSiteSetting("seoKeywords", event.target.value)} />
-                                        </LabeledControl>
+                                    <div className="border-t border-stone-200 pt-5 dark:border-stone-800">
+                                        <SectionTitle icon={<Search className="size-4" />} title="SEO 信息" />
+                                        <div className="mt-4 space-y-4">
+                                            <LabeledControl label="SEO 标题">
+                                                <Input value={settings.site.seoTitle} maxLength={72} placeholder={settings.site.title} onChange={(event) => updateSiteSetting("seoTitle", event.target.value)} />
+                                            </LabeledControl>
+                                            <LabeledControl label="SEO 描述">
+                                                <Input.TextArea value={settings.site.seoDescription} maxLength={180} rows={4} placeholder="用于搜索结果和社交分享摘要" onChange={(event) => updateSiteSetting("seoDescription", event.target.value)} />
+                                            </LabeledControl>
+                                            <LabeledControl label="SEO 关键词">
+                                                <Input value={settings.site.seoKeywords} maxLength={240} placeholder="VOZEB,AI 绘图,无限画布" onChange={(event) => updateSiteSetting("seoKeywords", event.target.value)} />
+                                            </LabeledControl>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <div className="border-t border-stone-200 pt-5 dark:border-stone-800">
-                                    <SectionTitle icon={<Globe2 className="size-4" />} title="首页收尾与社交媒体" />
-                                    <div className="mt-4 space-y-4">
+                                <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-4 dark:border-stone-800 dark:bg-stone-900/40">
+                                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <SectionTitle icon={<Globe2 className="size-4" />} title="首页收尾与社交媒体" />
+                                        <span className="text-xs font-medium text-stone-500 dark:text-stone-400">独立控制首页尾页展示</span>
+                                    </div>
+                                    <div className="mt-5 space-y-4">
                                         <LabeledControl label="版权所有">
                                             <Input value={settings.site.footerCopyright} maxLength={120} placeholder="© 2026 VOZEB. All rights reserved." onChange={(event) => updateSiteSetting("footerCopyright", event.target.value)} />
                                         </LabeledControl>

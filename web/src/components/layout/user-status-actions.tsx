@@ -85,7 +85,10 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
 
     useEffect(() => {
         if (user?.role === "admin") router.prefetch("/admin");
-        if (user) router.prefetch("/canvas");
+        if (user) {
+            router.prefetch("/canvas");
+            router.prefetch("/profile");
+        }
     }, [router, user]);
 
     const handleMenuClick: MenuProps["onClick"] = async ({ key }) => {

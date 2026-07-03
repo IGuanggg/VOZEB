@@ -308,10 +308,11 @@ export async function createUser(input: { username: string; email?: string; emai
 }
 
 export async function authenticateUser(input: { username: string; password: string }) {
-    const username = normalizeUsername(input.username);
+    const account = normalizeUsername(input.username);
+    const accountEmail = normalizeEmail(input.username);
     const db = await readAuthDb();
-    const user = db.users.find((item) => item.username.toLowerCase() === username.toLowerCase());
-    if (!user || !verifyPassword(input.password, user.passwordHash)) throw new AuthInputError("用户名或密码不正确");
+    const user = db.users.find((item) => item.username.toLowerCase() === account.toLowerCase() || (accountEmail && item.email?.toLowerCase() === accountEmail));
+    if (!user || !verifyPassword(input.password, user.passwordHash)) throw new AuthInputError("用户名、邮箱或密码不正确");
     if (user.status !== "active") throw new AuthInputError("该账号已被禁用");
 
     await mutateAuthDb((nextDb) => {

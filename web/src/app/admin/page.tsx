@@ -22,6 +22,7 @@ export default async function AdminPage() {
             user={{
                 id: currentUser.id,
                 username: currentUser.username,
+                email: currentUser.email,
                 displayName: currentUser.displayName,
                 role: currentUser.role,
                 status: currentUser.status,

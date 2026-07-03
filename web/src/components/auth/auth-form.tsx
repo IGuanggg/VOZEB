@@ -88,23 +88,24 @@ export function AuthForm({ mode, nextPath = "/canvas", registrationEnabled = tru
 
                 {disabled ? <div className="rounded-md border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900 dark:border-cyan-300/20 dark:bg-cyan-300/8 dark:text-cyan-50">当前站点已关闭注册，请联系管理员开通账号。</div> : null}
 
-                <label className="block space-y-2">
-                    <span className="text-sm font-medium text-stone-700 dark:text-stone-200">用户名</span>
+                <label className="block space-y-3">
+                    <span className="text-sm font-medium text-stone-700 dark:text-stone-200">{isRegister ? "登录用户名" : "用户名 / 邮箱"}</span>
                     <Input
                         size="large"
                         prefix={<UserRound className="size-4 text-stone-500" />}
                         value={username}
                         onChange={(event) => setUsername(event.target.value)}
-                        placeholder="your_name"
+                        placeholder={isRegister ? "your_name" : "用户名或已绑定邮箱"}
                         autoComplete="username"
                         disabled={submitting || disabled}
                         required
                     />
+                    {isRegister ? <span className="block text-xs leading-5 text-stone-500 dark:text-stone-400">用于登录，注册后不可修改；昵称可在个人资料中随时修改。</span> : null}
                 </label>
 
                 {isRegister && emailRegistrationEnabled ? (
                     <div className="space-y-3">
-                        <label className="block space-y-2">
+                        <label className="block space-y-3">
                             <span className="text-sm font-medium text-stone-700 dark:text-stone-200">邮箱</span>
                             <Input
                                 size="large"
@@ -118,7 +119,7 @@ export function AuthForm({ mode, nextPath = "/canvas", registrationEnabled = tru
                                 required
                             />
                         </label>
-                        <label className="block space-y-2">
+                        <label className="block space-y-3">
                             <span className="text-sm font-medium text-stone-700 dark:text-stone-200">邮箱验证码</span>
                             <Input.Search
                                 size="large"
@@ -136,13 +137,13 @@ export function AuthForm({ mode, nextPath = "/canvas", registrationEnabled = tru
                 ) : null}
 
                 {isRegister ? (
-                    <label className="block space-y-2">
-                        <span className="text-sm font-medium text-stone-700 dark:text-stone-200">显示名称</span>
-                        <Input size="large" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="用于顶部账号菜单" autoComplete="name" disabled={submitting || disabled} />
+                    <label className="block space-y-3">
+                        <span className="text-sm font-medium text-stone-700 dark:text-stone-200">显示昵称</span>
+                        <Input size="large" value={displayName} onChange={(event) => setDisplayName(event.target.value)} placeholder="显示在顶部账号菜单，可留空" autoComplete="name" disabled={submitting || disabled} />
                     </label>
                 ) : null}
 
-                <label className="block space-y-2">
+                <label className="block space-y-3">
                     <span className="text-sm font-medium text-stone-700 dark:text-stone-200">密码</span>
                     <Input.Password
                         size="large"
