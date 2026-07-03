@@ -753,6 +753,17 @@
         margin-top: 4px;
     }
 
+    .admin-prompt-builder {
+        background: rgba(248, 250, 252, 0.42);
+        border: 1px solid rgba(226, 232, 240, 0.72);
+        padding: 12px;
+    }
+
+    .dark .admin-prompt-builder {
+        background: rgba(2, 6, 23, 0.22);
+        border-color: rgba(255, 255, 255, 0.06);
+    }
+
     .admin-prompt-form {
         background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.78));
         border: 1px solid rgba(226, 232, 240, 0.9);

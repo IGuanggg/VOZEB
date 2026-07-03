@@ -61,6 +61,9 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
     const [promptsLoading, setPromptsLoading] = useState(false);
     const [promptsLoaded, setPromptsLoaded] = useState(false);
     const [deletingPromptId, setDeletingPromptId] = useState("");
+    const [promptSearch, setPromptSearch] = useState("");
+    const [selectedPromptIds, setSelectedPromptIds] = useState<string[]>([]);
+    const [bulkDeletingPrompts, setBulkDeletingPrompts] = useState(false);
     const [userSearch, setUserSearch] = useState("");
     const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
     const [bulkDeletingUsers, setBulkDeletingUsers] = useState(false);
@@ -89,6 +92,12 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
         return users.filter((user) => [user.displayName, user.username, user.email || "", user.role === "admin" ? "管理员" : "普通用户", user.status === "active" ? "可用" : "禁用"].some((value) => value.toLowerCase().includes(keyword)));
     }, [userSearch, users]);
     const selectedUsers = useMemo(() => users.filter((user) => selectedUserIds.includes(user.id)), [selectedUserIds, users]);
+    const filteredPrompts = useMemo(() => {
+        const keyword = promptSearch.trim().toLowerCase();
+        if (!keyword) return prompts;
+        return prompts.filter((prompt) => [prompt.title, prompt.prompt, prompt.category, prompt.coverUrl || "", prompt.preview || "", ...prompt.tags].some((value) => value.toLowerCase().includes(keyword)));
+    }, [promptSearch, prompts]);
+    const selectedPrompts = useMemo(() => prompts.filter((prompt) => selectedPromptIds.includes(prompt.id)), [prompts, selectedPromptIds]);
 
     useEffect(() => {
         if (activeSection === "prompts" && !promptsLoaded && !promptsLoading) void loadPrompts();
@@ -240,12 +249,34 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
             const payload = (await response.json()) as { error?: string };
             if (!response.ok) throw new Error(payload.error || "删除提示词失败");
             setPrompts((items) => items.filter((item) => item.id !== id));
+            setSelectedPromptIds((ids) => ids.filter((item) => item !== id));
             setPromptCount((count) => Math.max(0, count - 1));
             message.success("公共提示词已删除");
         } catch (error) {
             message.error(error instanceof Error ? error.message : "删除提示词失败");
         } finally {
             setDeletingPromptId("");
+        }
+    };
+
+    const bulkDeletePrompts = async () => {
+        const ids = selectedPromptIds.filter((id) => prompts.some((prompt) => prompt.id === id));
+        if (!ids.length) return;
+        setBulkDeletingPrompts(true);
+        try {
+            for (const id of ids) {
+                const response = await fetch(`/api/admin/prompts/${id}`, { method: "DELETE" });
+                const payload = (await response.json()) as { error?: string };
+                if (!response.ok) throw new Error(payload.error || "批量删除提示词失败");
+            }
+            setPrompts((items) => items.filter((item) => !ids.includes(item.id)));
+            setSelectedPromptIds([]);
+            setPromptCount((count) => Math.max(0, count - ids.length));
+            message.success(`已删除 ${ids.length} 条公共提示词`);
+        } catch (error) {
+            message.error(error instanceof Error ? error.message : "批量删除提示词失败");
+        } finally {
+            setBulkDeletingPrompts(false);
         }
     };
 
@@ -837,42 +868,87 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
                 {activeSection === "prompts" ? (
                     <Panel>
                         <PanelHeader title="公共提示词库" description="这里新增的提示词会出现在用户端“提示词库”；旧的外部仓库提示词已不再加载。" />
-                        <div className="grid gap-8 p-4 sm:p-5 2xl:grid-cols-[minmax(520px,0.86fr)_minmax(0,1.14fr)]">
-                            <Form className="admin-prompt-form rounded-xl px-6 py-6 sm:px-7" form={promptForm} layout="vertical" requiredMark={false} onFinish={createPrompt}>
-                                <div className="admin-prompt-note mb-6 rounded-lg p-4">
-                                    <div className="flex items-center gap-2 text-sm font-semibold text-stone-950 dark:text-stone-100">
-                                        <Plus className="size-4 text-cyan-600 dark:text-cyan-300" />
-                                        新增公共提示词
+                        <div className="space-y-6 p-4 sm:p-6">
+                            <section className="admin-prompt-builder rounded-xl">
+                                <Form className="admin-prompt-form mx-auto max-w-5xl px-5 py-5 sm:px-8 sm:py-7" form={promptForm} layout="vertical" requiredMark={false} onFinish={createPrompt}>
+                                    <div className="admin-prompt-note mb-7 rounded-lg p-4 sm:p-5">
+                                        <div className="flex items-center gap-2 text-sm font-semibold text-stone-950 dark:text-stone-100">
+                                            <Plus className="size-4 text-cyan-600 dark:text-cyan-300" />
+                                            新增公共提示词
+                                        </div>
+                                        <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-400">建议填写远程图片封面 URL，用户端会直接显示封面，不走本地素材存储。</p>
                                     </div>
-                                    <p className="mt-1 text-xs leading-5 text-stone-600 dark:text-stone-400">建议填写远程图片封面 URL，用户端会直接显示封面，不走本地素材存储。</p>
-                                </div>
-                                <div className="grid gap-3 sm:grid-cols-2">
-                                    <Form.Item label="提示词标题" name="title" rules={[{ required: true, message: "请输入标题" }]}>
-                                        <Input placeholder="例如：赛博城市海报" />
+                                    <div className="grid gap-x-5 gap-y-1 sm:grid-cols-2">
+                                        <Form.Item label="提示词标题" name="title" rules={[{ required: true, message: "请输入标题" }]}>
+                                            <Input placeholder="例如：赛博城市海报" />
+                                        </Form.Item>
+                                        <Form.Item label="分类" name="category">
+                                            <Input placeholder="商业海报 / 人像 / 产品" />
+                                        </Form.Item>
+                                    </div>
+                                    <div className="grid gap-x-5 gap-y-1 sm:grid-cols-2">
+                                        <Form.Item label="标签" name="tags">
+                                            <Input placeholder="用逗号分隔，例如：霓虹, 海报, 科幻" />
+                                        </Form.Item>
+                                        <Form.Item label="封面 URL" name="coverUrl">
+                                            <Input placeholder="https://example.com/image.png" />
+                                        </Form.Item>
+                                    </div>
+                                    <Form.Item label="提示词内容" name="prompt" rules={[{ required: true, message: "请输入提示词内容" }]}>
+                                        <Input.TextArea rows={7} placeholder="写入可直接用于生成的完整提示词，支持中英文描述。" />
                                     </Form.Item>
-                                    <Form.Item label="分类" name="category">
-                                        <Input placeholder="商业海报 / 人像 / 产品" />
+                                    <Form.Item label="备注 / 预览说明" name="preview">
+                                        <Input.TextArea rows={3} placeholder="可补充适用场景、参数建议或出图效果。" />
                                     </Form.Item>
+                                    <div className="flex justify-end">
+                                        <Button className="w-full sm:w-auto" type="primary" htmlType="submit" loading={promptSaving} icon={<Plus className="size-4" />}>
+                                            插入公共提示词
+                                        </Button>
+                                    </div>
+                                </Form>
+                            </section>
+                            <section className="admin-prompt-table rounded-xl">
+                                <div className="admin-prompt-table-header flex flex-wrap items-center justify-between gap-3 px-5 py-4 sm:px-6">
+                                    <div>
+                                        <h3 className="text-base font-semibold text-stone-950 dark:text-stone-100">提示词列表</h3>
+                                        <p className="mt-1 text-xs text-stone-500 dark:text-stone-400">已收录的公共提示词会同步展示到用户端提示词库。</p>
+                                    </div>
+                                    <span className="rounded-md bg-stone-100 px-2.5 py-1 text-xs font-medium text-stone-600 dark:bg-white/10 dark:text-stone-300">
+                                        {filteredPrompts.length === promptCount ? `${promptCount} 条` : `${filteredPrompts.length} / ${promptCount} 条`}
+                                    </span>
                                 </div>
-                                <Form.Item label="标签" name="tags">
-                                    <Input placeholder="用逗号分隔，例如：霓虹, 海报, 科幻" />
-                                </Form.Item>
-                                <Form.Item label="封面 URL" name="coverUrl">
-                                    <Input placeholder="https://example.com/image.png" />
-                                </Form.Item>
-                                <Form.Item label="提示词内容" name="prompt" rules={[{ required: true, message: "请输入提示词内容" }]}>
-                                    <Input.TextArea rows={7} placeholder="写入可直接用于生成的完整提示词，支持中英文描述。" />
-                                </Form.Item>
-                                <Form.Item label="备注 / 预览说明" name="preview">
-                                    <Input.TextArea rows={3} placeholder="可补充适用场景、参数建议或出图效果。" />
-                                </Form.Item>
-                                <Button className="w-full sm:w-auto" type="primary" htmlType="submit" loading={promptSaving} icon={<Plus className="size-4" />}>
-                                    插入公共提示词
-                                </Button>
-                            </Form>
-                            <div className="admin-prompt-table rounded-xl">
-                                <Table rowKey="id" columns={promptColumns} dataSource={prompts} loading={promptsLoading} pagination={{ pageSize: 6, hideOnSinglePage: true }} size="middle" />
-                            </div>
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-stone-200/70 px-5 py-4 dark:border-white/10 sm:px-6">
+                                    <Input
+                                        className="max-w-md"
+                                        prefix={<Search className="size-4 text-stone-400" />}
+                                        allowClear
+                                        placeholder="搜索标题、分类、标签或提示词内容"
+                                        value={promptSearch}
+                                        onChange={(event) => setPromptSearch(event.target.value)}
+                                    />
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs text-stone-500 dark:text-stone-400">已选 {selectedPrompts.length} 条</span>
+                                        <Popconfirm title="批量删除选中提示词？" description="会从公共提示词库中移除，用户端将不再显示这些提示词。" okText="删除" cancelText="取消" onConfirm={() => void bulkDeletePrompts()}>
+                                            <Button danger disabled={!selectedPrompts.length} loading={bulkDeletingPrompts} icon={<Trash2 className="size-4" />}>
+                                                批量删除
+                                            </Button>
+                                        </Popconfirm>
+                                    </div>
+                                </div>
+                                <Table
+                                    rowKey="id"
+                                    columns={promptColumns}
+                                    dataSource={filteredPrompts}
+                                    loading={promptsLoading}
+                                    pagination={{ pageSize: 6, hideOnSinglePage: true }}
+                                    size="middle"
+                                    scroll={{ x: 760 }}
+                                    rowSelection={{
+                                        selectedRowKeys: selectedPromptIds,
+                                        onChange: (keys) => setSelectedPromptIds(keys.map(String)),
+                                    }}
+                                />
+                            </section>
                         </div>
                     </Panel>
                 ) : null}
