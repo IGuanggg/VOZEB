@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="web/public/logo.svg" width="96" alt="VOZEB logo">
+  <img src="web/public/logo.svg?v=0.5.0-white" width="108" alt="VOZEB logo">
 </p>
 
 <h1 align="center">VOZEB</h1>
