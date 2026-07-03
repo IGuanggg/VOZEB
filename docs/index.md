@@ -1,6 +1,6 @@
 ﻿# VOZEB 文档索引
 
-当前版本：`v0.6.1`。VOZEB 是基于原开源项目 `basketikun/infinite-canvas` 继续开发的二开版本，当前仓库为 `csyqlz/vozeb`。
+当前版本：`v0.6.2`。VOZEB 是基于原开源项目 `basketikun/infinite-canvas` 继续开发的二开版本，当前仓库为 `csyqlz/vozeb`。
 
 ## 项目介绍
 

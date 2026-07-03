@@ -5,18 +5,31 @@ description: 用最少步骤把 VOZEB 跑起来
 
 # 快速开始
 
-如果你只是想先把项目跑起来，优先部署或启动 `web/` 前端。
+如果你只是想先把项目跑起来，优先使用发布镜像或启动 `web/` 前端。
 
-## Vercel 部署
+## Docker 启动
 
-在 Vercel 中导入仓库即可，根目录 `vercel.json` 会构建 `web/`。当前版本的 AI 请求由浏览器前台直连用户自己的 OpenAI 兼容地址，不需要额外配置服务端。
+低配服务器推荐直接拉取 VOZEB 发布镜像，服务器只负责启动容器，不现场执行 `next build`：
+
+```bash
+git clone git@github.com:csyqlz/vozeb.git
+cd vozeb
+docker compose up -d
+```
+
+启动后访问：
+
+```text
+http://服务器IP:3000
+```
+
+如果拉取 `ghcr.io/csyqlz/vozeb:latest` 提示 `denied`，说明 GitHub Packages 里的镜像还没有设为 Public，或者服务器没有登录 GHCR。公开部署请进入 GitHub Packages 的 `vozeb` 页面，把包可见性改为 Public；私有部署请先执行 `docker login ghcr.io`。
 
 ## 本地启动
 
 ```bash
 git clone git@github.com:csyqlz/vozeb.git
-cd vozeb
-cd web
+cd vozeb/web
 pnpm install
 pnpm run dev
 ```
@@ -27,28 +40,20 @@ pnpm run dev
 http://localhost:3000
 ```
 
-## Docker 启动
+## Vercel 部署
 
-低配服务器建议直接使用项目里的 `docker-compose.yml` 拉取 VOZEB 发布镜像：
-
-```bash
-docker compose up -d
-```
-
-如果你需要基于当前源码构建镜像：
-
-```bash
-docker build -t vozeb .
-docker run --rm -p 3000:3000 vozeb
-```
+在 Vercel 中导入仓库即可，根目录的 `vercel.json` 会构建 `web/`。当前版本的 AI 请求默认由浏览器前台直连用户自己的 OpenAI 兼容地址，不需要额外部署 AI 转发服务。
 
 ## 首次使用建议
 
-- 先打开右上角配置弹窗，填入自己的 `Base URL`、`API Key` 和模型名。
-- 管理员提示词库会自动采集原作者接入的远程提示词源，并只保留可访问的远程图片 URL。
-- 如果需要跨设备同步画布、素材和生成记录，可在配置弹窗中填写 WebDAV。
+- 第一次注册的账号会自动成为管理员，这个账号用于初始化网站和进入后台管理。
+- 管理员登录后进入 `管理员后台`，先配置网站标题、Logo、SEO、注册策略、邮箱服务、模型渠道、默认模型、用户额度和公共提示词库。
+- 管理员公共提示词库会自动采集原作者接入过的远程提示词源，并只保留可访问的远程图片 URL。
+- 如果需要跨设备同步画布、素材和生成记录，可以在配置弹窗中填写 WebDAV。
 
-## 说明
+## 数据说明
 
-- 当前画布项目和“我的素材”主要保存在浏览器本地，WebDAV 同步需要用户自行配置。
-- AI API Key 保存在浏览器本地，并由前端直接请求 OpenAI 兼容接口。
+- 画布项目和“我的素材”主要保存在浏览器本地。
+- 账号、后台设置、签到记录和公共提示词会写入服务端 `.data` 目录。
+- Docker Compose 默认挂载 `vozeb-data` 数据卷，正常执行 `docker compose pull && docker compose up -d` 更新镜像不会删除已有用户。
+- 不要执行 `docker compose down -v`，否则会删除数据卷。

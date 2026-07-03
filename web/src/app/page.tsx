@@ -176,7 +176,7 @@ export default function HomePage() {
                 <div className="landing-hero-copy relative z-10 mx-auto w-full max-w-7xl text-center">
                     <div className="inline-flex items-center gap-2 rounded-md border border-cyan-300/40 bg-white/70 px-3 py-1.5 text-sm text-stone-700 shadow-sm shadow-cyan-950/5 dark:border-cyan-200/20 dark:bg-cyan-200/8 dark:text-cyan-100">
                         <Sparkles className="size-4" />
-                        v0.6.1 官网式创作入口
+                        v0.6.2 官网式创作入口
                     </div>
                     <div className="hero-title-stage">
                         <div className="hero-title-wrap">

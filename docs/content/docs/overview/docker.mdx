@@ -5,7 +5,7 @@ description: 使用 Docker Compose 部署 VOZEB
 
 # Docker 部署
 
-如果你希望在自己的机器或服务器上运行项目，可以直接使用 Docker Compose。
+如果你希望在自己的机器或服务器上运行 VOZEB，推荐直接使用 Docker Compose。
 
 ## 使用发布镜像
 
@@ -22,6 +22,8 @@ volumes:
   vozeb-data:
 ```
 
+部署命令：
+
 ```bash
 git clone git@github.com:csyqlz/vozeb.git
 cd vozeb
@@ -31,8 +33,29 @@ docker compose up -d
 启动后访问：
 
 ```text
-http://localhost:3000
+http://服务器IP:3000
 ```
+
+第一次注册的账号会自动成为管理员。请用这个首个管理员账号进入后台，完成网站标题、Logo、SEO、邮箱注册、SMTP、模型渠道、默认模型、用户额度和公共提示词库配置。
+
+## GHCR 拉取 denied
+
+如果服务器执行 `docker compose pull` 或 `docker compose up -d` 时提示类似 `denied`、`unauthorized` 或 `permission_denied`，通常有两个原因：
+
+- GitHub Packages 中的 `ghcr.io/csyqlz/vozeb` 还没有设为 Public。
+- 你想保持镜像私有，但服务器没有执行 `docker login ghcr.io`。
+
+公开部署推荐进入 GitHub Packages 的 `vozeb` 包页面，打开 `Package settings -> Change visibility`，把可见性改为 `Public`。如果还有文档站镜像 `vozeb-docs`，也需要同样设置。
+
+私有部署则在服务器上登录 GHCR：
+
+```bash
+echo "你的 GitHub Token" | docker login ghcr.io -u 你的GitHub用户名 --password-stdin
+docker compose pull
+docker compose up -d
+```
+
+Token 需要具备读取 Packages 的权限。不要把 Token 写进仓库或公开日志。
 
 ## 本地构建镜像
 
@@ -52,17 +75,17 @@ sudo swapon /swapfile
 docker compose -f docker-compose.lowmem.yml up -d --build
 ```
 
-低内存构建会把 Node 构建内存上限压到 384MB，并保留 `NEXT_BUILD_CPUS=1`，能降低 OOM 概率，但会明显变慢。如果仍然失败，请改用发布镜像，或在本机/CI 构建后推送镜像。
+低内存构建会把 Node 构建内存上限压到 384MB，并保留 `NEXT_BUILD_CPUS=1`，能降低 OOM 概率，但会明显变慢。如果仍然失败，请改用发布镜像，或在本机 / CI 构建后推送镜像仓库，再让服务器拉取。
 
 ## 为什么低配服务器构建会拉满 CPU
 
-这不是异常崩溃，而是 Next.js 生产构建阶段的正常资源峰值。当前 VOZEB 已经比原作者早期版本多了账号系统、管理员后台、公共提示词种子、文档资料、standalone Docker 输出和 Turbopack 页面生成流程；`next build` 会编译、收集页面数据并生成静态页面，所以 2 核 2G 机器上 CPU 可能长时间接近 100%/200%，内存不足时还会用到 swap。
+这不是异常崩溃，而是 Next.js 生产构建阶段的正常资源峰值。当前 VOZEB 已经比原作者早期版本多了账号系统、管理员后台、公共提示词种子、文档资料、standalone Docker 输出和页面生成流程；`next build` 会编译、收集页面数据并生成静态页面，所以 2 核 2G 机器上 CPU 可能长时间接近 100%/200%，内存不足时还会用到 swap。
 
 原作者早期版本更偏纯前端个人画布工具，构建面更小，也没有现在这些后台和内置数据步骤，因此同规格服务器压力会低很多。
 
 建议顺序：
 
-1. 0.5G 服务器使用 `ghcr.io/csyqlz/vozeb:latest` 发布镜像，服务器只拉取和启动，不现场构建，才适合 2 分钟级部署。
+1. 0.5G 服务器使用 `ghcr.io/csyqlz/vozeb:latest` 发布镜像，服务器只拉取和启动，适合 2 分钟级部署。
 2. 必须本地构建时保留 `NEXT_BUILD_CPUS=1`，并开启 BuildKit 缓存；建议至少 2G 内存。
 3. 如果仍然卡死，在本机或 CI 构建镜像后推送到镜像仓库，再让服务器拉取。
 

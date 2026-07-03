@@ -901,7 +901,7 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
                                         <Input.TextArea rows={3} placeholder="可补充适用场景、参数建议或出图效果。" />
                                     </Form.Item>
                                     <div className="flex justify-end">
-                                        <Button className="w-full sm:w-auto" type="primary" htmlType="submit" loading={promptSaving} icon={<Plus className="size-4" />}>
+                                        <Button className="admin-prompt-submit w-full sm:w-auto" type="primary" htmlType="submit" loading={promptSaving} icon={<Plus className="size-4" />}>
                                             插入公共提示词
                                         </Button>
                                     </div>

@@ -764,7 +764,7 @@
     }
 
     .admin-prompt-form {
-        background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.78));
+        background: transparent;
         border: 0;
         box-shadow: none;
     }
@@ -794,8 +794,28 @@
     }
 
     .dark .admin-prompt-form {
-        background: linear-gradient(180deg, rgba(15, 23, 42, 0.7), rgba(12, 10, 9, 0.46));
+        background: transparent;
         box-shadow: none;
+    }
+
+    .admin-prompt-submit.ant-btn {
+        align-items: center;
+        border: 0;
+        border-radius: 10px;
+        box-shadow: 0 12px 26px rgba(14, 165, 233, 0.22);
+        font-weight: 650;
+        height: 44px;
+        padding-inline: 22px;
+    }
+
+    .admin-prompt-submit.ant-btn-primary {
+        background: linear-gradient(135deg, #0284c7, #2563eb);
+    }
+
+    .admin-prompt-submit.ant-btn-primary:hover {
+        background: linear-gradient(135deg, #0369a1, #1d4ed8) !important;
+        box-shadow: 0 14px 30px rgba(37, 99, 235, 0.26);
+        transform: translateY(-1px);
     }
 
     .admin-prompt-table {
