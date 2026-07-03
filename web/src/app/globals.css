@@ -168,33 +168,121 @@
         }
     }
 
+    .hero-title-wrap {
+        align-items: center;
+        display: flex;
+        flex-direction: column;
+        position: relative;
+    }
+
+    .hero-cape {
+        height: clamp(72px, 10vw, 132px);
+        margin-top: clamp(-26px, -2.8vw, -14px);
+        max-width: min(760px, 92vw);
+        overflow: visible;
+        pointer-events: none;
+        width: 100%;
+    }
+
+    .hero-cape-fill {
+        opacity: 0.88;
+    }
+
+    .hero-cape-edge {
+        fill: none;
+        stroke: url(#cape-edge);
+        stroke-linecap: round;
+        stroke-linejoin: round;
+    }
+
+    .hero-cape-edge-main {
+        opacity: 0.94;
+        stroke-width: 4.5;
+    }
+
+    .hero-cape-edge-soft {
+        opacity: 0.42;
+        stroke-width: 1.5;
+    }
+
+    .hero-cape-tail {
+        fill: none;
+        opacity: 0.42;
+        stroke: rgba(125, 211, 252, 0.55);
+        stroke-linecap: round;
+        stroke-width: 1.25;
+    }
+
+    .dark .hero-cape {
+        filter: drop-shadow(0 0 12px rgba(125, 211, 252, 0.38));
+    }
+
     .animated-dot-bg {
-        background-image: radial-gradient(circle, rgba(68, 64, 60, 0.22) 1px, transparent 1.4px);
-        background-position: 0 0;
-        background-size: 16px 16px;
-        animation: animated-dot-bg 24s linear infinite;
+        background:
+            radial-gradient(ellipse 78% 42% at 50% 50%, rgba(255, 255, 255, 0.74), transparent 66%),
+            radial-gradient(ellipse 90% 48% at 50% 96%, rgba(14, 165, 233, 0.16), transparent 62%),
+            radial-gradient(circle at 16% 22%, rgba(45, 212, 191, 0.08), transparent 28%),
+            radial-gradient(circle at 86% 72%, rgba(96, 165, 250, 0.09), transparent 30%),
+            linear-gradient(180deg, #f8fafc 0%, #edf8ff 48%, #f8fafc 100%);
+        isolation: isolate;
+        position: relative;
     }
 
     .dark .animated-dot-bg {
-        background-image: radial-gradient(circle, rgba(245, 245, 244, 0.2) 1px, transparent 1.4px);
+        background:
+            radial-gradient(ellipse 46% 34% at 50% 42%, rgba(148, 163, 184, 0.2), transparent 68%),
+            radial-gradient(ellipse 110% 54% at 50% 100%, rgba(8, 145, 178, 0.24), transparent 64%),
+            radial-gradient(circle at 18% 20%, rgba(34, 211, 238, 0.12), transparent 30%),
+            radial-gradient(circle at 84% 70%, rgba(59, 130, 246, 0.14), transparent 34%),
+            linear-gradient(180deg, #020617 0%, #020611 44%, #031827 100%);
     }
 
-    @keyframes animated-dot-bg {
-        0% {
-            background-position: 0 0;
-        }
-        50% {
-            background-position: 16px 12px;
-        }
-        100% {
-            background-position: 32px 24px;
-        }
+    .animated-dot-bg > * {
+        position: relative;
+        z-index: 1;
     }
 
-    @media (prefers-reduced-motion: reduce) {
-        .animated-dot-bg {
-            animation: none;
-        }
+    .animated-dot-bg::before,
+    .animated-dot-bg::after {
+        content: "";
+        inset: 0;
+        pointer-events: none;
+        position: fixed;
+        z-index: 0;
+    }
+
+    .animated-dot-bg::before {
+        background-image:
+            radial-gradient(circle, rgba(15, 23, 42, 0.16) 0 1px, transparent 1.55px),
+            radial-gradient(circle, rgba(6, 182, 212, 0.2) 0 0.9px, transparent 1.9px);
+        background-position:
+            0 0,
+            12px 10px;
+        background-size:
+            18px 18px,
+            54px 54px;
+        opacity: 0.58;
+    }
+
+    .dark .animated-dot-bg::before {
+        background-image:
+            radial-gradient(circle, rgba(248, 250, 252, 0.18) 0 1px, transparent 1.55px),
+            radial-gradient(circle, rgba(103, 232, 249, 0.3) 0 0.9px, transparent 1.9px);
+        opacity: 0.64;
+    }
+
+    .animated-dot-bg::after {
+        background-image:
+            radial-gradient(ellipse 42% 30% at 50% 44%, rgba(255, 255, 255, 0.34), transparent 68%),
+            linear-gradient(180deg, rgba(2, 6, 23, 0) 0%, rgba(2, 6, 23, 0.08) 42%, rgba(2, 6, 23, 0.18) 100%);
+        opacity: 0.48;
+    }
+
+    .dark .animated-dot-bg::after {
+        background-image:
+            radial-gradient(ellipse 42% 30% at 50% 44%, rgba(125, 211, 252, 0.16), transparent 68%),
+            linear-gradient(180deg, rgba(2, 6, 23, 0) 0%, rgba(2, 6, 23, 0.2) 64%, rgba(2, 6, 23, 0.34) 100%);
+        opacity: 1;
     }
 
     .hide-scrollbar {

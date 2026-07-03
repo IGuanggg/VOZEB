@@ -38,7 +38,31 @@ export default function IndexPage() {
         <main className="animated-dot-bg relative h-full overflow-y-auto bg-background text-stone-950 dark:text-stone-100">
             <section className="relative mx-auto min-h-[calc(100vh-4rem)] max-w-7xl overflow-hidden px-6">
                 <div className="relative flex min-h-[620px] flex-col items-center justify-center pt-10 text-center">
-                    <h1 className="ai-title-aurora max-w-5xl text-balance text-5xl font-semibold tracking-normal sm:text-7xl lg:text-8xl">VOZEB</h1>
+                    <div className="hero-title-wrap">
+                        <h1 className="ai-title-aurora max-w-5xl text-balance text-5xl font-semibold tracking-normal sm:text-7xl lg:text-8xl">VOZEB</h1>
+                        <svg className="hero-cape" viewBox="0 0 760 160" role="presentation" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="cape-fill" x1="110" x2="660" y1="18" y2="104" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0" stopColor="#67e8f9" stopOpacity="0" />
+                                    <stop offset="0.22" stopColor="#67e8f9" stopOpacity="0.18" />
+                                    <stop offset="0.52" stopColor="#f8fafc" stopOpacity="0.42" />
+                                    <stop offset="0.78" stopColor="#38bdf8" stopOpacity="0.22" />
+                                    <stop offset="1" stopColor="#0ea5e9" stopOpacity="0" />
+                                </linearGradient>
+                                <linearGradient id="cape-edge" x1="118" x2="684" y1="84" y2="20" gradientUnits="userSpaceOnUse">
+                                    <stop offset="0" stopColor="#22d3ee" stopOpacity="0" />
+                                    <stop offset="0.26" stopColor="#a5f3fc" stopOpacity="0.72" />
+                                    <stop offset="0.55" stopColor="#ffffff" stopOpacity="0.9" />
+                                    <stop offset="0.82" stopColor="#67e8f9" stopOpacity="0.72" />
+                                    <stop offset="1" stopColor="#38bdf8" stopOpacity="0" />
+                                </linearGradient>
+                            </defs>
+                            <path className="hero-cape-fill" d="M128 84 C208 128 336 116 430 78 C526 38 596 10 682 18 C602 46 536 91 444 124 C330 164 210 151 128 84Z" fill="url(#cape-fill)" />
+                            <path className="hero-cape-edge hero-cape-edge-main" d="M124 79 C200 122 333 113 429 75 C526 37 595 8 682 16" />
+                            <path className="hero-cape-edge hero-cape-edge-soft" d="M154 105 C247 136 352 126 452 92 C535 64 594 48 655 48" />
+                            <path className="hero-cape-tail" d="M586 42 C638 70 690 86 730 84" />
+                        </svg>
+                    </div>
                     <p className="mt-8 max-w-3xl text-balance text-lg leading-8 text-stone-500 dark:text-stone-400">
                         在
                         <Highlighter action="underline" color="#FF9800">
