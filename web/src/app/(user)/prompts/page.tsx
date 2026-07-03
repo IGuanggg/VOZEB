@@ -15,12 +15,13 @@ import { ALL_PROMPTS_OPTION, type Prompt } from "@/services/api/prompts";
 export default function PromptsPage() {
     const { message } = App.useApp();
     const [titleKeyword, setTitleKeyword] = useState("");
-    const [selectedTags, setSelectedTags] = useState<string[]>([]);
+    const [selectedTag, setSelectedTag] = useState(ALL_PROMPTS_OPTION);
     const [selectedCategory, setSelectedCategory] = useState(ALL_PROMPTS_OPTION);
     const [selectedPrompt, setSelectedPrompt] = useState<Prompt | null>(null);
     const addAsset = useAssetStore((state) => state.addAsset);
     const copyText = useCopyText();
-    const { query, items: promptItems, tags: promptTags, categories: promptCategoryOptions, total: totalPrompts } = usePromptList({ keyword: titleKeyword, tags: selectedTags, category: selectedCategory });
+    const activeTags = selectedTag === ALL_PROMPTS_OPTION ? [] : [selectedTag];
+    const { query, items: promptItems, tags: promptTags, categories: promptCategoryOptions, total: totalPrompts } = usePromptList({ keyword: titleKeyword, tags: activeTags, category: selectedCategory });
 
     useEffect(() => {
         if (query.isError) {
@@ -28,10 +29,7 @@ export default function PromptsPage() {
         }
     }, [message, query.error, query.isError]);
 
-    const toggleTag = (tag: string) => {
-        if (tag === ALL_PROMPTS_OPTION) return setSelectedTags([]);
-        setSelectedTags((items) => (items.includes(tag) ? items.filter((item) => item !== tag) : [...items, tag]));
-    };
+    const toggleTag = (tag: string) => setSelectedTag(tag === selectedTag ? ALL_PROMPTS_OPTION : tag);
 
     const savePromptAsset = (item: Prompt) => {
         addAsset({ kind: "text", title: item.title, coverUrl: item.coverUrl, tags: item.tags, source: item.category, data: { content: item.prompt }, metadata: { source: "prompt-library", promptId: item.id, githubUrl: item.githubUrl || "" } });
@@ -79,14 +77,9 @@ export default function PromptsPage() {
                                 </div>
                                 <div className="grid gap-2 sm:grid-cols-[56px_minmax(0,1fr)] sm:items-start">
                                     <div className="pt-2 text-xs font-medium text-stone-500 dark:text-stone-400">标签</div>
-                                    <div className="flex flex-wrap gap-2">
+                                    <div className="thin-scrollbar flex max-h-28 flex-wrap gap-2 overflow-y-auto pr-1">
                                         {promptTags.map((tag) => (
-                                            <Tag.CheckableTag
-                                                key={tag}
-                                                checked={tag === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(tag)}
-                                                className={cn("prompt-filter-tag", (tag === ALL_PROMPTS_OPTION ? selectedTags.length === 0 : selectedTags.includes(tag)) && "is-active")}
-                                                onChange={() => toggleTag(tag)}
-                                            >
+                                            <Tag.CheckableTag key={tag} checked={tag === selectedTag} className={cn("prompt-filter-tag", tag === selectedTag && "is-active")} onChange={() => toggleTag(tag)}>
                                                 {tag}
                                             </Tag.CheckableTag>
                                         ))}

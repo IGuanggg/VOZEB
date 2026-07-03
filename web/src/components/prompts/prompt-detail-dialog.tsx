@@ -14,7 +14,7 @@ export function PromptDetailDialog({ prompt, onClose, onCopy, onSaveAsset }: { p
                         <div className="grid gap-5 md:grid-cols-[300px_minmax(0,1fr)]">
                             <div className="space-y-3">
                                 {prompt.coverUrl ? (
-                                    <img src={prompt.coverUrl} alt={prompt.title} className="aspect-[4/3] w-full rounded-lg object-cover" />
+                                    <img src={prompt.coverUrl} alt={prompt.title} className="aspect-[4/3] w-full rounded-lg object-cover" loading="lazy" referrerPolicy="no-referrer" />
                                 ) : (
                                     <div className="flex aspect-[4/3] w-full items-center justify-center rounded-lg bg-stone-100 px-5 text-center text-sm font-medium text-stone-500 dark:bg-stone-900 dark:text-stone-400">{prompt.title}</div>
                                 )}

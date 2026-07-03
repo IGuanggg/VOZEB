@@ -2,6 +2,7 @@
 
 import { Drawer } from "antd";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { cn } from "@/lib/utils";
@@ -13,6 +14,8 @@ type MobileNavDrawerProps = {
 };
 
 export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDrawerProps) {
+    const router = useRouter();
+
     return (
         <Drawer
             title={
@@ -41,6 +44,9 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
                         <Link
                             key={tool.slug}
                             href={`/${tool.slug}`}
+                            prefetch
+                            onMouseEnter={() => router.prefetch(`/${tool.slug}`)}
+                            onFocus={() => router.prefetch(`/${tool.slug}`)}
                             onClick={onClose}
                             className={cn(
                                 "flex items-center gap-3 rounded-lg px-3 py-3.5 text-[15px] transition",

@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { AuthInputError } from "@/lib/auth/store";
+import originalAuthorSeeds from "@/lib/prompts/original-author-seeds.json";
 
 export type PromptScope = "library" | "user";
 
@@ -16,6 +17,8 @@ export type StoredPrompt = {
     tags: string[];
     category: string;
     preview: string;
+    githubUrl?: string;
+    source?: string;
     createdAt: string;
     updatedAt: string;
 };
@@ -32,6 +35,18 @@ export type PromptInput = {
 type PromptDatabase = {
     version: 1;
     prompts: StoredPrompt[];
+    seedSources: string[];
+};
+
+type OriginalAuthorSeed = {
+    id: string;
+    title: string;
+    coverUrl: string;
+    prompt: string;
+    tags: string[];
+    category: string;
+    preview: string;
+    githubUrl: string;
 };
 
 type PromptListOptions = {
@@ -46,10 +61,13 @@ type PromptListOptions = {
 
 const PROMPT_DATA_FILE = resolve(process.cwd(), ".data", "prompts.json");
 const DEFAULT_COVER_URL = "";
+const LEGACY_ORIGINAL_AUTHOR_SEED_SOURCE_PREFIX = "basketikun/infinite-canvas-prompts";
+const ORIGINAL_AUTHOR_SEED_SOURCE_PREFIX = "vozeb/original-author-prompts";
+const ORIGINAL_AUTHOR_SEED_SOURCE = `${ORIGINAL_AUTHOR_SEED_SOURCE_PREFIX}:v3`;
 let mutationQueue = Promise.resolve();
 
 export async function listPrompts(options: PromptListOptions) {
-    const db = await readPromptDb();
+    const db = await readPromptDb({ includeSeeds: true });
     const keyword = (options.keyword || "").trim().toLowerCase();
     const tags = options.tags || [];
     const category = options.category || "";
@@ -71,7 +89,7 @@ export async function listPrompts(options: PromptListOptions) {
 }
 
 export async function listAllLibraryPrompts() {
-    const db = await readPromptDb();
+    const db = await readPromptDb({ includeSeeds: true });
     return db.prompts.filter((item) => item.scope === "library").sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
 }
 
@@ -151,23 +169,58 @@ function normalizeTags(value: PromptInput["tags"]) {
     return Array.from(new Set(raw.map((tag) => tag.trim().toLowerCase()).filter(Boolean))).slice(0, 12);
 }
 
-async function readPromptDb(): Promise<PromptDatabase> {
+async function readPromptDb({ includeSeeds }: { includeSeeds: boolean }): Promise<PromptDatabase> {
     try {
         const raw = await readFile(PROMPT_DATA_FILE, "utf8");
         const db = JSON.parse(raw) as Partial<PromptDatabase>;
-        return {
+        const normalized = {
             version: 1,
             prompts: Array.isArray(db.prompts) ? db.prompts.map(normalizeStoredPrompt).filter(Boolean) : [],
+            seedSources: Array.isArray(db.seedSources) ? db.seedSources.filter(Boolean) : [],
         };
+        return includeSeeds ? ensureOriginalAuthorPrompts(normalized) : normalized;
     } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "ENOENT") return { version: 1, prompts: [] };
+        if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+            const empty = { version: 1 as const, prompts: [], seedSources: [] };
+            return includeSeeds ? ensureOriginalAuthorPrompts(empty) : empty;
+        }
         throw error;
     }
 }
 
+async function ensureOriginalAuthorPrompts(db: PromptDatabase) {
+    if (db.seedSources.includes(ORIGINAL_AUTHOR_SEED_SOURCE)) return db;
+    const seeds = originalAuthorSeeds as OriginalAuthorSeed[];
+    if (!seeds.length) return db;
+    const now = new Date().toISOString();
+    db.prompts = db.prompts.filter((item) => !isOriginalAuthorSeedSource(item.source));
+    db.seedSources = db.seedSources.filter((source) => !isOriginalAuthorSeedSource(source));
+    const existingIds = new Set(db.prompts.map((item) => item.id));
+    const seededPrompts = seeds
+        .map((seed): StoredPrompt => ({
+            id: `original-${seed.id}`,
+            scope: "library",
+            title: seed.title,
+            coverUrl: seed.coverUrl,
+            prompt: seed.prompt,
+            tags: normalizeTags(seed.tags),
+            category: seed.category,
+            preview: seed.preview,
+            githubUrl: seed.githubUrl,
+            source: ORIGINAL_AUTHOR_SEED_SOURCE,
+            createdAt: now,
+            updatedAt: now,
+        }))
+        .filter((item) => !existingIds.has(item.id));
+    db.prompts.push(...seededPrompts);
+    db.seedSources = Array.from(new Set([...db.seedSources, ORIGINAL_AUTHOR_SEED_SOURCE]));
+    await writePromptDb(db);
+    return db;
+}
+
 async function mutatePromptDb<T>(mutator: (db: PromptDatabase) => T | Promise<T>) {
     const run = mutationQueue.then(async () => {
-        const db = await readPromptDb();
+        const db = await readPromptDb({ includeSeeds: false });
         const result = await mutator(db);
         await writePromptDb(db);
         return result;
@@ -196,13 +249,15 @@ function normalizeStoredPrompt(value: StoredPrompt): StoredPrompt {
         tags: normalizeTags(value.tags),
         category: value.category || "默认",
         preview: value.preview || "",
+        githubUrl: value.githubUrl,
+        source: value.source,
         createdAt: value.createdAt || now,
         updatedAt: value.updatedAt || value.createdAt || now,
     };
 }
 
 function collectTags(items: StoredPrompt[]) {
-    return Array.from(new Set(items.flatMap((item) => item.tags).filter(Boolean)));
+    return Array.from(new Set(items.flatMap((item) => item.tags).filter(isUsefulPromptTag)));
 }
 
 function collectCategories(items: StoredPrompt[]) {
@@ -211,4 +266,17 @@ function collectCategories(items: StoredPrompt[]) {
 
 function isActiveOption(value: string) {
     return value && value !== "全部" && value !== "all";
+}
+
+function isOriginalAuthorSeedSource(source?: string) {
+    return Boolean(source?.startsWith(ORIGINAL_AUTHOR_SEED_SOURCE_PREFIX) || source?.startsWith(LEGACY_ORIGINAL_AUTHOR_SEED_SOURCE_PREFIX));
+}
+
+function isUsefulPromptTag(tag?: string) {
+    const value = (tag || "").trim();
+    if (!value || value.length > 24) return false;
+    if (value.startsWith("@")) return false;
+    if (/^aws?ome-?gpt/i.test(value)) return false;
+    if (/^(moosl|openai)$/i.test(value)) return false;
+    return true;
 }

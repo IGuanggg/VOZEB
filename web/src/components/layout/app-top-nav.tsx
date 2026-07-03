@@ -2,7 +2,7 @@
 
 import { Menu } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { navigationTools, type NavigationToolSlug } from "@/constant/navigation-tools";
 import { AppConfigModal } from "@/components/layout/app-config-modal";
@@ -13,6 +13,7 @@ import { useState } from "react";
 
 export function AppTopNav() {
     const pathname = usePathname();
+    const router = useRouter();
     const [mobileNavOpen, setMobileNavOpen] = useState(false);
     const hideHeader = /^\/canvas\/[^/]+/.test(pathname);
     const slug = pathname.split("/").filter(Boolean)[0];
@@ -53,6 +54,9 @@ export function AppTopNav() {
                                         <Link
                                             key={tool.slug}
                                             href={`/${tool.slug}`}
+                                            prefetch
+                                            onMouseEnter={() => router.prefetch(`/${tool.slug}`)}
+                                            onFocus={() => router.prefetch(`/${tool.slug}`)}
                                             className={cn(
                                                 "relative flex h-[72px] shrink-0 items-center gap-2 text-[15px] leading-6 transition after:absolute after:inset-x-0 after:bottom-0 after:h-px",
                                                 active

@@ -1,13 +1,13 @@
 ---
 title: Render 部署
-description: 使用 Render 部署无限画布
+description: 使用 Render 部署 VOZEB
 ---
 
 # Render 部署
 
 点击下面链接即可部署到 Render：
 
-[部署到 Render](https://render.com/deploy?repo=https://github.com/basketikun/infinite-canvas)
+[部署到 Render](https://render.com/deploy?repo=https://github.com/csyqlz/vozeb)
 
 ## 部署步骤
 
@@ -22,7 +22,7 @@ description: 使用 Render 部署无限画布
 默认使用 Render 免费 Web Service：
 
 - 空闲约 15 分钟后会休眠，下次访问会自动唤醒。
-- 当前主应用数据默认保存在浏览器本地；第三方提示词缓存会随 Render 实例重启而清空，下次访问会重新拉取。
+- 当前画布数据默认保存在浏览器本地；管理员提示词库写入服务端 `.data/prompts.json`，免费实例重建后可能丢失，建议长期使用时挂载持久化存储或自行备份。
 - 适合体验和演示，不适合长期保存正式数据。
 
 长期使用建议优先部署到 Vercel，或自行配置 WebDAV 同步浏览器本地数据。

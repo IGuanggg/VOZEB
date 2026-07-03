@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="web/public/logo.svg?v=0.5.0-white" width="108" alt="VOZEB logo">
+  <img src="web/public/logo.svg?v=0.5.1-white" width="108" alt="VOZEB logo">
 </p>
 
 <h1 align="center">VOZEB</h1>
 
 <p align="center">
   <a href="https://github.com/csyqlz/vozeb"><img src="https://img.shields.io/github/stars/csyqlz/vozeb?style=flat-square&logo=github" alt="GitHub stars"></a>
-  <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.5.0-2563eb?style=flat-square" alt="Version"></a>
+  <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.5.1-2563eb?style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-f97316?style=flat-square" alt="License"></a>
   <a href="https://vercel.com/"><img src="https://img.shields.io/badge/Vercel-ready-000000?style=flat-square&logo=vercel" alt="Vercel ready"></a>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-16.2-000000?style=flat-square&logo=nextdotjs" alt="Next.js"></a>
@@ -14,7 +14,7 @@
 
 VOZEB 是一款面向 AI 图片创作、素材管理和视觉方案迭代的开源工作台。它把无限画布、AI 生成、参考图编辑、提示词库、素材沉淀、用户权限、管理员配置和本地 Agent 能力放到同一个工作流里，适合个人创作者、本地部署场景和小团队内部使用。
 
-VOZEB 当前版本为 `v0.5.0`，这是基于原开源项目 [basketikun/infinite-canvas](https://github.com/basketikun/infinite-canvas) 继续开发的二开版本。感谢原创作者 basketikun 对无限画布、AI 创作工作流、Canvas Agent 和 Codex 插件能力的开源贡献。
+VOZEB 当前版本为 `v0.5.1`，这是基于原开源项目 [basketikun/infinite-canvas](https://github.com/basketikun/infinite-canvas) 继续开发的二开版本。感谢原创作者 basketikun 对无限画布、AI 创作工作流、Canvas Agent 和 Codex 插件能力的开源贡献。
 
 > [!CAUTION]
 > 项目仍处于快速开发阶段，不保证历史数据兼容。当前更适合个人或本地部署，不建议直接公网多人共用。
@@ -25,13 +25,20 @@ VOZEB 当前版本为 `v0.5.0`，这是基于原开源项目 [basketikun/infinit
 - AI 图片创作：支持文生图、图生图、参考图编辑、图片反推提示词、图片切图、局部蒙版修改和图片放大。
 - 音频与视频：支持音频节点、视频生成、声音/水印配置，以及图片、视频、音频参考输入。
 - 画布助手：围绕选中节点和上游节点对话、生图，并把结果插回当前画布。
-- 提示词库：支持公共提示词库、我的提示词、标签、分类、封面和提示词素材沉淀。
+- 提示词库：支持公共提示词库、我的提示词、标签、分类、封面和提示词素材沉淀；管理员公共提示词会采集原作者接入的远程提示词源，并只保留可访问的远程图片 URL。
 - 素材管理：支持图片、文本、视频等素材保存、复用、导入导出和 WebDAV 同步。
 - 用户系统：支持账号密码注册登录、管理员后台、用户角色、账号状态、每日额度和签到奖励。
 - 通用接口：管理员可配置 OpenAI 兼容接口、系统模型渠道、默认模型，并允许或禁止用户自配接口。
 - 本地 Agent：通过本机 Canvas Agent 连接 Codex / Claude Code，让 Agent 通过 MCP 操作当前画布。
 - Codex App 插件：提供 Codex app 插件，安装后可自动注册 MCP 并尝试拉起本地 Agent。
 - 版本更新：右上角版本入口可查看更新记录，并从 `csyqlz/vozeb` 检查最新版本。
+
+## v0.5.1 更新
+
+- 版本提升为 `v0.5.1`，同步更新项目说明、文档入口、部署命令和版本检查信息。
+- 管理员公共提示词库接入原作者提示词源采集，只保留可正常访问的远程图片 URL，封面不写入浏览器本地素材存储。
+- 后台公共提示词表格新增封面缩略图，便于管理员确认图片是否正常显示。
+- 修正文档站、Docker、Render、快速开始等资料里的旧仓库地址和旧项目名称。
 
 ## v0.5.0 更新
 
@@ -110,6 +117,20 @@ pnpm run dev
 
 ## Docker 运行
 
+低配服务器（例如 2 核 2G）建议优先使用发布镜像，拉取速度和稳定性都比现场构建更好：
+
+```yaml
+services:
+  app:
+    image: ghcr.io/csyqlz/vozeb:latest
+    container_name: vozeb
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+```
+
+如果需要基于当前源码本地构建，再使用下面的命令：
+
 ```bash
 docker build -t vozeb .
 docker run --rm -p 3000:3000 vozeb
@@ -120,20 +141,27 @@ docker run --rm -p 3000:3000 vozeb
 如果使用 New API，可在 `系统设置 -> 聊天方式 -> 添加聊天设置` 中填入：
 
 ```text
-https://canvas.best?apiKey={key}&baseUrl={address}
+https://your-vozeb-domain.example?apiKey={key}&baseUrl={address}
 ```
 
-跳转后会自动打开配置弹窗并填入 API Key 和 Base URL。如果自己部署了，可以把 `https://canvas.best` 替换成你的部署地址。
+跳转后会自动打开配置弹窗并填入 API Key 和 Base URL。请把示例域名替换成你的 VOZEB 部署地址。
 
 ## 文档
 
 - [快速开始](docs/content/docs/overview/quick-start.mdx)
 - [功能介绍](docs/content/docs/overview/features.mdx)
+- [Render 部署](docs/content/docs/overview/render.mdx)
 - [Docker 部署](docs/content/docs/overview/docker.mdx)
+- [第三方 GitHub 提示词仓库](docs/content/docs/overview/third-party-prompt-repositories.mdx)
 - [画布节点操作手册](docs/content/docs/canvas/canvas-node-manual.mdx)
 - [画布快捷键](docs/content/docs/canvas/canvas-shortcuts.mdx)
+- [本地开发](docs/content/docs/backend/local-development.mdx)
+- [画布数据结构](docs/content/docs/backend/canvas-data-structure.mdx)
 - [本地 Canvas Agent](canvas-agent/README.md)
 - [Codex app 插件](plugins/infinite-canvas)
+- [开源协议](docs/content/docs/business/license.mdx)
+- [贡献者协议](docs/content/docs/business/cla.mdx)
+- [漏洞提交](docs/content/docs/support/security.mdx)
 - [待办事项](docs/content/docs/progress/todo.mdx)
 - [待测试](docs/content/docs/progress/pending-test.mdx)
 

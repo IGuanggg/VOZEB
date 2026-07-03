@@ -1,6 +1,6 @@
 ---
 title: Docker 部署
-description: 使用 Docker Compose 部署无限画布
+description: 使用 Docker Compose 部署 VOZEB
 ---
 
 # Docker 部署
@@ -9,9 +9,17 @@ description: 使用 Docker Compose 部署无限画布
 
 ## 使用发布镜像
 
+项目根目录的 `docker-compose.yml` 已经指向 VOZEB 发布镜像：
+
+```yaml
+services:
+  app:
+    image: ghcr.io/csyqlz/vozeb:latest
+```
+
 ```bash
-git clone git@github.com:basketikun/infinite-canvas.git
-cd infinite-canvas
+git clone git@github.com:csyqlz/vozeb.git
+cd vozeb
 docker compose up -d
 ```
 
@@ -28,6 +36,8 @@ http://localhost:3000
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
 ```
+
+2 核 2G 服务器建议优先使用发布镜像；如必须本地构建，请使用支持 BuildKit 的 Docker 版本，构建缓存会复用依赖和 `.next/cache`。
 
 ## 文档站镜像
 
@@ -49,4 +59,4 @@ docker compose -f docker-compose.local.yml up -d --build
 
 ## 数据说明
 
-当前主应用镜像只启动 Next.js。画布、我的素材、生成记录和 AI API Key 默认保存在浏览器本地；第三方提示词由 Next.js route 拉取后缓存在运行实例内存里，不需要额外挂载数据目录。
+当前主应用镜像只启动 Next.js。画布、我的素材、生成记录和 AI API Key 默认保存在浏览器本地；公共提示词库会写入服务端 `.data/prompts.json`，如需长期保留管理员提示词，请挂载 `.data` 目录。

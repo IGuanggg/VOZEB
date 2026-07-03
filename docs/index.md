@@ -1,9 +1,12 @@
-# 无限画布文档索引
+# VOZEB 文档索引
+
+当前版本：`v0.5.1`。VOZEB 是基于原开源项目 `basketikun/infinite-canvas` 继续开发的二开版本，当前仓库为 `csyqlz/vozeb`。
 
 ## 项目介绍
 
 - [快速开始](/docs/overview/quick-start)
 - [功能介绍](/docs/overview/features)
+- [Codex App 插件](/docs/overview/codex-app-plugin)
 - [Render 部署](/docs/overview/render)
 - [Docker 部署](/docs/overview/docker)
 - [第三方 GitHub 提示词仓库](/docs/overview/third-party-prompt-repositories)
@@ -39,4 +42,5 @@
 ## 说明
 
 - 当前画布项目和“我的素材”主要保存在浏览器本地，跨设备可自行配置 WebDAV 同步。
-- AI API Key 保存在浏览器本地，并由前端直接请求 OpenAI 兼容接口。
+- 管理员后台支持账号、额度、模型渠道和公共提示词库管理。
+- 公共提示词库会采集原作者接入的远程提示词源，只保留可访问的远程图片 URL，不写入浏览器本地素材存储。

@@ -270,15 +270,22 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPrompts, 
             title: "提示词",
             dataIndex: "title",
             render: (_, record) => (
-                <div className="min-w-0">
-                    <div className="font-medium text-stone-950 dark:text-stone-100">{record.title}</div>
-                    <div className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500 dark:text-stone-400">{record.prompt}</div>
-                    <div className="mt-2 flex flex-wrap gap-1">
-                        {record.tags.map((tag) => (
-                            <Tag key={tag} className="m-0 text-[11px]">
-                                {tag}
-                            </Tag>
-                        ))}
+                <div className="flex min-w-0 gap-3">
+                    {record.coverUrl ? (
+                        <img src={record.coverUrl} alt={record.title} className="h-14 w-20 shrink-0 rounded-md border border-stone-200 object-cover dark:border-stone-800" loading="lazy" referrerPolicy="no-referrer" />
+                    ) : (
+                        <div className="h-14 w-20 shrink-0 rounded-md border border-stone-200 bg-stone-100 dark:border-stone-800 dark:bg-stone-900" />
+                    )}
+                    <div className="min-w-0">
+                        <div className="font-medium text-stone-950 dark:text-stone-100">{record.title}</div>
+                        <div className="mt-1 line-clamp-2 text-xs leading-5 text-stone-500 dark:text-stone-400">{record.prompt}</div>
+                        <div className="mt-2 flex flex-wrap gap-1">
+                            {record.tags.map((tag) => (
+                                <Tag key={tag} className="m-0 text-[11px]">
+                                    {tag}
+                                </Tag>
+                            ))}
+                        </div>
                     </div>
                 </div>
             ),
