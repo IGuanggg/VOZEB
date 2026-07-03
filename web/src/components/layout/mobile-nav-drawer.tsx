@@ -34,7 +34,7 @@ export function MobileNavDrawer({ open, activeToolSlug, onClose }: MobileNavDraw
             size={280}
             open={open}
             onClose={onClose}
-            className="md:hidden"
+            className="lg:hidden"
         >
             <div className="space-y-1.5">
                 {navigationTools.map((tool) => {
