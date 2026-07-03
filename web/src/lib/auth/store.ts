@@ -172,6 +172,7 @@ export function isQuotaExceededError(error: unknown): error is QuotaExceededErro
 
 const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const EMAIL_CODE_MAX_AGE_MS = 1000 * 60 * 10;
+const EMAIL_CODE_RESEND_COOLDOWN_MS = 1000 * 60;
 export const DEFAULT_USER_QUOTA: UserQuota = { imageDaily: 100, videoDaily: 20, textDaily: 500, audioDaily: 100 };
 export const DEFAULT_CHECK_IN_REWARD: UserQuota = { imageDaily: 5, videoDaily: 1, textDaily: 20, audioDaily: 5 };
 export const DEFAULT_SITE_SETTINGS: SiteSettings = {
@@ -347,6 +348,10 @@ export async function createEmailVerificationCode(input: { purpose: EmailCodePur
         }
 
         const code = randomNumericCode();
+        const activeCode = db.emailCodes.find((item) => item.purpose === input.purpose && item.email === email && item.userId === input.userId && !item.consumedAt && Date.parse(item.expiresAt) > now.getTime());
+        if (activeCode && now.getTime() - Date.parse(activeCode.createdAt) < EMAIL_CODE_RESEND_COOLDOWN_MS) {
+            throw new AuthInputError("验证码发送太频繁，请 60 秒后再试");
+        }
         db.emailCodes = db.emailCodes.filter((item) => !(item.purpose === input.purpose && item.email === email && item.userId === input.userId && !item.consumedAt));
         db.emailCodes.push({
             id: randomUUID(),
