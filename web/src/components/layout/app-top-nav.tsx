@@ -38,7 +38,7 @@ export function AppTopNav() {
         <>
             {!hideHeader ? (
                 <header className="app-shell-header sticky top-0 z-20 h-[68px] shrink-0 sm:h-[74px]">
-                    <div className="mx-auto grid h-full max-w-7xl grid-cols-[1fr_auto] items-center gap-3 px-3 sm:px-6 lg:grid-cols-[1fr_auto_1fr]">
+                    <div className="mx-auto grid h-full max-w-[1500px] grid-cols-[1fr_auto] items-center gap-3 px-3 sm:px-6 lg:grid-cols-[minmax(180px,0.75fr)_auto_minmax(360px,1.25fr)] lg:gap-5">
                         <div className="flex min-w-0 items-center justify-start">
                             <Link href="/" className="flex h-full shrink-0 items-center gap-2.5 text-sm font-semibold leading-none tracking-tight text-stone-950 transition hover:text-stone-600 dark:text-stone-100 dark:hover:text-stone-300">
                                 <SiteLogo logoUrl={site.logoUrl} className="size-9" />
@@ -56,7 +56,7 @@ export function AppTopNav() {
                             </button>
                         </div>
 
-                        <nav className="app-shell-nav-pill hide-scrollbar hidden min-w-0 items-center gap-1 overflow-x-auto overflow-y-visible lg:flex">
+                        <nav className="app-shell-nav-pill hide-scrollbar hidden min-w-0 items-center gap-1 overflow-x-auto overflow-y-visible lg:flex lg:justify-self-center">
                             {navigationTools.map((tool) => {
                                 const Icon = tool.icon;
                                 const active = tool.slug === activeToolSlug;
@@ -67,7 +67,7 @@ export function AppTopNav() {
                                         prefetch
                                         onMouseEnter={() => router.prefetch(`/${tool.slug}`)}
                                         onFocus={() => router.prefetch(`/${tool.slug}`)}
-                                        className={cn("app-shell-nav-link flex h-10 shrink-0 items-center gap-2 rounded-md px-3.5 text-sm font-medium leading-none", active && "is-active")}
+                                        className={cn("app-shell-nav-link flex h-10 shrink-0 items-center gap-2 rounded-lg px-3.5 text-sm font-medium leading-none", active && "is-active")}
                                     >
                                         <Icon className="size-[17px]" />
                                         <span className="truncate">{tool.label}</span>
