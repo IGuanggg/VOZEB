@@ -5,6 +5,11 @@ services:
       - "3000:3000"
     volumes:
       - vozeb-data:/app/web/.data
+    environment:
+      NODE_OPTIONS: "--max-old-space-size=384"
+      UV_THREADPOOL_SIZE: "2"
+      NEXT_TELEMETRY_DISABLED: "1"
+      VOZEB_DATA_DIR: /app/web/.data
     mem_limit: 512m
     memswap_limit: 768m
     restart: unless-stopped

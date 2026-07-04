@@ -1,13 +1,11 @@
 import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
 
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
+import { resolveServerDataPath } from "@/lib/server/data-dir";
 
 export const runtime = "nodejs";
-
-const DATA_DIR = resolve(process.cwd(), ".data");
 
 export async function GET() {
     const currentUser = await getCurrentUser();
@@ -36,7 +34,7 @@ export async function GET() {
 
 async function readDataJson(fileName: string) {
     try {
-        return JSON.parse(await readFile(resolve(DATA_DIR, fileName), "utf8")) as unknown;
+        return JSON.parse(await readFile(resolveServerDataPath(fileName), "utf8")) as unknown;
     } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
         throw error;

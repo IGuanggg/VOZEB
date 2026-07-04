@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
 import { App } from "antd";
 
-import { createModelChannel, useConfigStore } from "@/stores/use-config-store";
+import { createModelChannel, normalizeGenerationConcurrency, useConfigStore, type GenerationConcurrencySettings } from "@/stores/use-config-store";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
     const { message } = App.useApp();
@@ -12,6 +12,16 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const updateConfig = useConfigStore((state) => state.updateConfig);
     const config = useConfigStore((state) => state.config);
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
+
+    useEffect(() => {
+        void fetch("/api/auth/session", { cache: "no-store" })
+            .then((response) => response.json() as Promise<{ settings?: { modelPointCosts?: Record<string, number>; generationConcurrency?: GenerationConcurrencySettings } }>)
+            .then((payload) => {
+                updateConfig("modelPointCosts", payload.settings?.modelPointCosts || {});
+                if (payload.settings?.generationConcurrency) updateConfig("generationConcurrency", normalizeGenerationConcurrency(payload.settings.generationConcurrency));
+            })
+            .catch(() => undefined);
+    }, [updateConfig]);
 
     useEffect(() => {
         if (handledConfigParams.current) return;

@@ -6,6 +6,8 @@ services:
       - "3000:3000"
     volumes:
       - vozeb-data:/app/web/.data
+    environment:
+      VOZEB_DATA_DIR: /app/web/.data
     restart: unless-stopped
 
 volumes:

@@ -104,44 +104,46 @@ export default function ImagePage() {
     const [references, setReferences] = useState<ReferenceImage[]>([]);
     const [results, setResults] = useState<GenerationResult[]>([]);
     const [logs, setLogs] = useState<GenerationLog[]>([]);
-    const [running, setRunning] = useState(false);
     const [logsOpen, setLogsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [promptDialogOpen, setPromptDialogOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
-    const [startedAt, setStartedAt] = useState(0);
-    const [elapsedMs, setElapsedMs] = useState(0);
     const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
     const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
     const [previewLog, setPreviewLog] = useState<GenerationLog | null>(null);
     const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
-    const [runningLogId, setRunningLogId] = useState<string | null>(null);
     const resultsByLogIdRef = useRef(new Map<string, GenerationResult[]>());
     const logsRef = useRef<GenerationLog[]>([]);
     const activeLogIdRef = useRef<string | null>(null);
     const taskControllersRef = useRef(new Map<string, AbortController>());
     const logWriteQueuesRef = useRef(new Map<string, Promise<unknown>>());
     const deletedResultIdsRef = useRef(new Set<string>());
+    const activeImageTasksRef = useRef(0);
+    const imageTaskQueueRef = useRef<Array<() => void>>([]);
+    const imageConcurrencyLimitRef = useRef(4);
+    const [activeImageTasks, setActiveImageTasks] = useState(0);
 
     const model = effectiveConfig.imageModel || effectiveConfig.model;
     const canGenerate = Boolean(prompt.trim());
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
+    const imageConcurrencyLimit = Math.max(1, Math.min(10, Math.floor(Number(effectiveConfig.generationConcurrency?.image) || 4)));
+    const previewPendingCount = results.filter((result) => result.status === "pending").length;
     const pointsCost = requestCreditCost({ apiSource: effectiveConfig.apiSource, modelPointCosts: effectiveConfig.modelPointCosts, model, count: generationCount });
-
-    useEffect(() => {
-        if (!running || !startedAt) return;
-        const timer = window.setInterval(() => setElapsedMs(performance.now() - startedAt), 1000);
-        return () => window.clearInterval(timer);
-    }, [running, startedAt]);
 
     useEffect(() => {
         void refreshLogs();
     }, []);
 
     useEffect(() => {
+        imageConcurrencyLimitRef.current = imageConcurrencyLimit;
+        startQueuedImageTasks();
+    }, [imageConcurrencyLimit]);
+
+    useEffect(() => {
         return () => {
             taskControllersRef.current.forEach((controller) => controller.abort());
             taskControllersRef.current.clear();
+            imageTaskQueueRef.current.splice(0);
         };
     }, []);
 
@@ -256,6 +258,47 @@ export default function ImagePage() {
         return nextResults;
     }
 
+    function reserveImageTaskSlot() {
+        const nextActive = activeImageTasksRef.current + 1;
+        activeImageTasksRef.current = nextActive;
+        setActiveImageTasks(nextActive);
+    }
+
+    function startQueuedImageTasks() {
+        while (activeImageTasksRef.current < imageConcurrencyLimitRef.current && imageTaskQueueRef.current.length) {
+            const resolve = imageTaskQueueRef.current.shift();
+            if (!resolve) return;
+            reserveImageTaskSlot();
+            resolve();
+        }
+    }
+
+    async function waitForImageTaskSlot() {
+        if (activeImageTasksRef.current < imageConcurrencyLimitRef.current) {
+            reserveImageTaskSlot();
+            return;
+        }
+        await new Promise<void>((resolve) => imageTaskQueueRef.current.push(resolve));
+    }
+
+    function releaseImageTaskSlot() {
+        const nextActive = Math.max(0, activeImageTasksRef.current - 1);
+        activeImageTasksRef.current = nextActive;
+        setActiveImageTasks(nextActive);
+        startQueuedImageTasks();
+    }
+
+    async function runQueuedImageTask<T>(logId: string, resultId: string, worker: () => Promise<T>) {
+        if (deletedResultIdsRef.current.has(`${logId}:${resultId}`)) return undefined;
+        await waitForImageTaskSlot();
+        try {
+            if (deletedResultIdsRef.current.has(`${logId}:${resultId}`)) return undefined;
+            return await worker();
+        } finally {
+            releaseImageTaskSlot();
+        }
+    }
+
     function resumePendingLogs(nextLogs: GenerationLog[]) {
         nextLogs.forEach((log) => {
             const snapshot = snapshotFromLog(log, effectiveConfig);
@@ -264,7 +307,7 @@ export default function ImagePage() {
                 if (taskControllersRef.current.has(controllerKey)) return;
                 const controller = new AbortController();
                 taskControllersRef.current.set(controllerKey, controller);
-                void completeGenerationTask(log.id, pendingTask.resultId, pendingTask.index, snapshot, pendingTask, controller)
+                void runQueuedImageTask(log.id, pendingTask.resultId, () => completeGenerationTask(log.id, pendingTask.resultId, pendingTask.index, snapshot, pendingTask, controller))
                     .catch((error) => {
                         if (controller.signal.aborted) return;
                         const durationMs = Math.max(log.durationMs || 0, Date.now() - pendingTask.startedAt);
@@ -334,30 +377,22 @@ export default function ImagePage() {
         const pendingLog = buildLogFromResults(existingLog, snapshot, startedResults, baseDurationMs, String(startedResults.length));
         const logId = pendingLog.id;
 
-        setElapsedMs(0);
-        setRunning(true);
-        setRunningLogId(logId);
-        setStartedAt(batchStartedAt);
         setSelectedResultIds([]);
         activeLogIdRef.current = logId;
         setPreviewLog(pendingLog);
         setLogResults(logId, startedResults);
         await saveLog(pendingLog);
 
-        const tasks = startedResults.slice(baseResults.length).map((result, offset) => runGenerationSlot(logId, result.id, baseResults.length + offset, snapshot, batchStartedAt, baseDurationMs));
-
-        const result = await Promise.allSettled(tasks);
-        const failed = result.find((item): item is PromiseRejectedResult => item.status === "rejected");
-
-        try {
-            const finalResults = resultsByLogIdRef.current.get(logId) || startedResults;
-            const finalLog = buildLogFromResults(existingLog || pendingLog, snapshot, finalResults, baseDurationMs + performance.now() - batchStartedAt, String(finalResults.length), failed?.reason instanceof Error ? failed.reason.message : undefined);
-            await saveLog(finalLog);
-            finalLog.successCount ? message.success("图片已生成") : message.error(failed?.reason instanceof Error ? failed.reason.message : "生成失败");
-        } finally {
-            setRunning(false);
-            setRunningLogId(null);
-        }
+        startedResults.slice(baseResults.length).forEach((result, offset) => {
+            void runQueuedImageTask(logId, result.id, () => runGenerationSlot(logId, result.id, baseResults.length + offset, snapshot, batchStartedAt, baseDurationMs))
+                .then((image) => {
+                    if (image) message.success("图片已生成");
+                })
+                .catch((error) => {
+                    if (!deletedResultIdsRef.current.has(`${logId}:${result.id}`)) message.error(error instanceof Error ? error.message : "生成失败");
+                });
+        });
+        message.success("已加入当前用户生成队列");
     };
 
     const downloadImage = (image: GeneratedImage, index: number) => {
@@ -400,8 +435,6 @@ export default function ImagePage() {
         setPrompt("");
         setReferences([]);
         setResults([]);
-        setElapsedMs(0);
-        setStartedAt(0);
         setSelectedLogIds([]);
         setSelectedResultIds([]);
         setPreviewLog(null);
@@ -471,23 +504,19 @@ export default function ImagePage() {
 
     const retryResult = (index: number) => {
         const currentLog = previewLog ? getLatestLog(previewLog.id) || previewLog : null;
-        if (!currentLog || running) return;
+        if (!currentLog) return;
         const snapshot = buildRequestSnapshot();
         if (!snapshot) return;
         const currentResult = getLogResults(currentLog)[index];
         if (!currentResult) return;
         const batchStartedAt = performance.now();
-        setRunning(true);
-        setRunningLogId(currentLog.id);
-        setElapsedMs(0);
-        setStartedAt(batchStartedAt);
         patchLogResultAt(currentLog.id, index, { status: "pending", error: undefined, image: undefined, task: undefined }, snapshot, currentLog.durationMs || 0);
-        void runGenerationSlot(currentLog.id, currentResult.id, index, snapshot, batchStartedAt, currentLog.durationMs || 0)
-            .then(() => message.success("图片已重新生成"))
-            .catch((error) => message.error(error instanceof Error ? error.message : "生成失败"))
-            .finally(() => {
-                setRunning(false);
-                setRunningLogId(null);
+        void runQueuedImageTask(currentLog.id, currentResult.id, () => runGenerationSlot(currentLog.id, currentResult.id, index, snapshot, batchStartedAt, currentLog.durationMs || 0))
+            .then((image) => {
+                if (image) message.success("图片已重新生成");
+            })
+            .catch((error) => {
+                if (!deletedResultIdsRef.current.has(`${currentLog.id}:${currentResult.id}`)) message.error(error instanceof Error ? error.message : "生成失败");
             });
     };
 
@@ -610,7 +639,7 @@ export default function ImagePage() {
                                             <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => setReferences((value) => moveListItem(value, index, offset))} />
                                             <button
                                                 type="button"
-                                                className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex"
+                                                className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-white/95 text-red-600 opacity-90 shadow-sm ring-1 ring-red-200 transition hover:opacity-100 dark:bg-black/70 dark:text-red-200 dark:ring-red-900/60"
                                                 onClick={() => setReferences((value) => value.filter((ref) => ref.id !== item.id))}
                                                 aria-label="移除参考图"
                                             >
@@ -637,7 +666,7 @@ export default function ImagePage() {
                         </div>
 
                         <div className="mt-auto pt-6">
-                            <Button type="primary" size="large" block loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
+                            <Button type="primary" size="large" block disabled={!canGenerate || activeImageTasks >= imageConcurrencyLimit} onClick={() => void generate()}>
                                 <span className="inline-flex items-center justify-center gap-2">
                                     <span className="inline-flex items-center gap-1.5 tabular-nums">
                                         <Sparkles className="size-[17px]" />
@@ -646,6 +675,7 @@ export default function ImagePage() {
                                     <span>开始生成</span>
                                 </span>
                             </Button>
+                            {activeImageTasks ? <div className="mt-2 text-center text-xs text-stone-500 dark:text-stone-400">当前用户运行 {activeImageTasks}/{imageConcurrencyLimit}</div> : null}
                         </div>
                     </div>
 
@@ -665,7 +695,8 @@ export default function ImagePage() {
                                         </Button>
                                     </>
                                 ) : null}
-                                {running && runningLogId === previewLog?.id ? <Tag className="m-0 px-2 py-1">等待 {formatDuration(elapsedMs)}</Tag> : null}
+                                {previewPendingCount ? <Tag className="m-0 px-2 py-1" color="processing">生成中 {previewPendingCount}</Tag> : null}
+                                {activeImageTasks ? <Tag className="m-0 px-2 py-1">运行 {activeImageTasks}/{imageConcurrencyLimit}</Tag> : null}
                             </div>
                         </div>
                         {results.length ? (
@@ -942,7 +973,7 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                 onClick();
             }}
         >
-            <div className="grid grid-cols-[minmax(128px,1fr)_auto] gap-2">
+            <div className="grid min-w-0 gap-2">
                 <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2">
                     <Checkbox className="mt-0.5" checked={selected} onClick={(event) => event.stopPropagation()} onChange={(event) => onSelectedChange(event.target.checked)} />
                     <div className="min-w-0">
@@ -991,8 +1022,8 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                         ) : null}
                     </div>
                 </div>
-                <div className="grid justify-items-end gap-2">
-                    <div className="flex gap-1">
+                <div className="ml-7 mt-1 rounded-md border border-stone-200/70 bg-white/65 px-2.5 py-2 shadow-sm shadow-stone-200/30 dark:border-stone-800 dark:bg-stone-950/45 dark:shadow-black/10">
+                    <div className="flex min-w-0 flex-wrap items-center gap-1.5">
                         <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none" color="blue">
                             成功 {log.successCount ?? log.imageCount}
                         </Tag>
@@ -1006,16 +1037,12 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                                 生成中 {log.pendingCount}
                             </Tag>
                         ) : null}
-                    </div>
-                    <div className="flex flex-wrap justify-end gap-1">
                         <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none">{log.imageCount} 张</Tag>
                         <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none" color="green">
                             {formatDuration(log.durationMs)}
                         </Tag>
                     </div>
-                    <div className="flex justify-end">
-                        <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none">{log.time}</Tag>
-                    </div>
+                    <div className="mt-1.5 truncate text-xs leading-5 text-stone-500 dark:text-stone-400">{log.time}</div>
                 </div>
             </div>
         </div>

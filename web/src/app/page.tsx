@@ -1,10 +1,10 @@
 "use client";
 
-import { type ReactNode, useEffect, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Gauge, Image as ImageIcon, Layers3, Mail, Send, ShieldCheck, Sparkles, Wand2 } from "lucide-react";
-import { App, Button, Image, Modal, Tag } from "antd";
+import { Button, Image, Modal, Tag } from "antd";
 
 import { AuthForm } from "@/components/auth/auth-form";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
@@ -126,9 +126,10 @@ function HeroCape() {
 
 export default function HomePage() {
     const router = useRouter();
-    const { message } = App.useApp();
     const [primaryTool] = navigationTools;
     const [promptShowcase, setPromptShowcase] = useState<Prompt[]>([]);
+    const showcaseRef = useRef<HTMLElement | null>(null);
+    const showcaseRequestedRef = useRef(false);
     const [previewIndex, setPreviewIndex] = useState(0);
     const [previewOpen, setPreviewOpen] = useState(false);
     const [authOpen, setAuthOpen] = useState(false);
@@ -148,10 +149,54 @@ export default function HomePage() {
             })
             .catch(() => undefined);
 
-        void fetchPrompts({ pageSize: 8 })
-            .then((data) => setPromptShowcase(data.items))
-            .catch((error) => message.error(error instanceof Error ? error.message : "获取提示词失败"));
-    }, [message, setUser]);
+    }, [setUser]);
+
+    useEffect(() => {
+        let idleHandle: number | undefined;
+        let timeoutHandle: ReturnType<typeof globalThis.setTimeout> | undefined;
+        let observer: IntersectionObserver | undefined;
+
+        const loadShowcase = () => {
+            void fetchPrompts({ pageSize: 8 })
+                .then((data) => setPromptShowcase(data.items))
+                .catch(() => undefined);
+        };
+
+        const scheduleLoad = () => {
+            if (showcaseRequestedRef.current) return;
+            showcaseRequestedRef.current = true;
+            if ("requestIdleCallback" in window) {
+                idleHandle = window.requestIdleCallback(loadShowcase, { timeout: 1800 });
+            } else {
+                timeoutHandle = globalThis.setTimeout(loadShowcase, 600);
+            }
+        };
+
+        const section = showcaseRef.current;
+        if (!section || !("IntersectionObserver" in window)) {
+            timeoutHandle = globalThis.setTimeout(scheduleLoad, 1200);
+            return () => {
+                if (timeoutHandle) globalThis.clearTimeout(timeoutHandle);
+            };
+        }
+
+        observer = new IntersectionObserver(
+            (entries) => {
+                if (entries.some((entry) => entry.isIntersecting)) {
+                    observer?.disconnect();
+                    scheduleLoad();
+                }
+            },
+            { rootMargin: "360px 0px" },
+        );
+        observer.observe(section);
+
+        return () => {
+            observer?.disconnect();
+            if (idleHandle && "cancelIdleCallback" in window) window.cancelIdleCallback(idleHandle);
+            if (timeoutHandle) globalThis.clearTimeout(timeoutHandle);
+        };
+    }, []);
 
     return (
         <main className="animated-dot-bg relative h-dvh overflow-x-hidden overflow-y-auto bg-background text-stone-950 dark:text-stone-100">
@@ -184,7 +229,7 @@ export default function HomePage() {
                             <h1 className="ai-title-aurora max-w-6xl text-balance text-7xl font-semibold tracking-normal sm:text-8xl lg:text-[9rem] xl:text-[11rem]">{site.title || "VOZEB"}</h1>
                             <span className="hero-version-badge inline-flex items-center gap-2 rounded-lg border border-cyan-300/45 bg-white/82 px-3.5 py-2 text-sm font-semibold text-stone-700 shadow-sm shadow-cyan-950/5 dark:border-cyan-200/20 dark:bg-cyan-200/8 dark:text-cyan-100">
                                 <Sparkles className="size-4" />
-                                v0.7.3 创作入口
+                                v0.7.4 创作入口
                             </span>
                             <HeroCape />
                         </div>
@@ -243,7 +288,7 @@ export default function HomePage() {
                 </div>
             </section>
 
-            <section className="landing-showcase-section relative z-10 mx-auto max-w-[1200px] px-6 pb-20">
+            <section ref={showcaseRef} className="landing-showcase-section relative z-10 mx-auto max-w-[1200px] px-6 pb-20">
                 <div className="landing-showcase-shell">
                     <div className="landing-showcase-header mb-8 flex flex-wrap items-end justify-between gap-4">
                         <div>
@@ -283,6 +328,11 @@ export default function HomePage() {
                                 </div>
                             </button>
                         ))}
+                        {!promptShowcase.length
+                            ? Array.from({ length: 4 }).map((_, index) => (
+                                  <div key={index} className={cn("rounded-lg border border-white/60 bg-white/50 shadow-sm shadow-stone-200/40 dark:border-white/10 dark:bg-white/5 dark:shadow-black/20", index === 0 && "md:col-span-2 md:row-span-2", index === 3 && "md:col-span-2")} />
+                              ))
+                            : null}
                     </div>
                 </div>
             </section>

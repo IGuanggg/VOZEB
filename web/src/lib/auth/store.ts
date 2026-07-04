@@ -1,7 +1,8 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 
+import { resolveServerDataPath } from "@/lib/server/data-dir";
 import { hashPassword, verifyPassword } from "./password";
 
 export type UserRole = "admin" | "user";
@@ -32,6 +33,11 @@ export type SystemDefaultModels = {
     videoModel: string;
     textModel: string;
     audioModel: string;
+};
+
+export type GenerationConcurrencySettings = {
+    image: number;
+    video: number;
 };
 
 export type SiteSettings = {
@@ -154,6 +160,7 @@ export type AuthSettings = {
     defaultPoints: number;
     checkInRewardPoints: number;
     modelPointCosts: ModelPointCosts;
+    generationConcurrency: GenerationConcurrencySettings;
     systemChannels: SystemModelChannel[];
     defaultModels: SystemDefaultModels;
 };
@@ -222,10 +229,11 @@ const DEFAULT_SETTINGS: AuthSettings = {
     defaultPoints: DEFAULT_USER_POINTS,
     checkInRewardPoints: DEFAULT_CHECK_IN_REWARD_POINTS,
     modelPointCosts: {},
+    generationConcurrency: { image: 4, video: 1 },
     systemChannels: [],
     defaultModels: { imageModel: "", videoModel: "", textModel: "", audioModel: "" },
 };
-const AUTH_DATA_FILE = resolve(process.cwd(), ".data", "auth.json");
+const AUTH_DATA_FILE = resolveServerDataPath("auth.json");
 const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
 
 let mutationQueue = Promise.resolve();
@@ -729,6 +737,7 @@ function normalizeSettings(settings: AuthSettings): AuthSettings {
         defaultPoints: normalizePoints(settings.defaultPoints, legacyQuotaToPoints(legacySettings.defaultQuota, DEFAULT_USER_POINTS)),
         checkInRewardPoints: normalizePoints(settings.checkInRewardPoints, legacyQuotaToPoints(legacySettings.checkInReward, DEFAULT_CHECK_IN_REWARD_POINTS)),
         modelPointCosts: normalizeModelPointCosts(settings.modelPointCosts),
+        generationConcurrency: normalizeGenerationConcurrency(settings.generationConcurrency),
         systemChannels: Array.isArray(settings.systemChannels) ? settings.systemChannels.map(normalizeSystemChannel).filter((channel) => channel.name || channel.baseUrl || channel.models.length) : [],
         defaultModels: {
             imageModel: settings.defaultModels?.imageModel || "",
@@ -736,6 +745,13 @@ function normalizeSettings(settings: AuthSettings): AuthSettings {
             textModel: settings.defaultModels?.textModel || "",
             audioModel: settings.defaultModels?.audioModel || "",
         },
+    };
+}
+
+function normalizeGenerationConcurrency(settings: Partial<GenerationConcurrencySettings> | undefined): GenerationConcurrencySettings {
+    return {
+        image: Math.max(1, Math.min(10, Math.floor(Number(settings?.image) || DEFAULT_SETTINGS.generationConcurrency.image))),
+        video: Math.max(1, Math.min(5, Math.floor(Number(settings?.video) || DEFAULT_SETTINGS.generationConcurrency.video))),
     };
 }
 

@@ -1,0 +1,49 @@
+---
+title: 0.5G 服务器部署
+description: 在 0.5G 内存服务器上部署 VOZEB 的推荐方式。
+---
+
+# 0.5G 服务器部署
+
+0.5G 内存服务器不要在机器上执行 `next build` 或 `docker build`。推荐直接拉取 GitHub Actions 已经构建好的镜像，只在服务器上运行容器。
+
+## 推荐命令
+
+```bash
+docker compose -f docker-compose.lowmem.yml pull
+docker compose -f docker-compose.lowmem.yml up -d
+```
+
+打开：
+
+```text
+http://服务器IP:3000
+```
+
+首次注册的账号会自动成为管理员。账号、后台设置、签到记录和公共提示词保存在 `vozeb-data` 数据卷里，并通过 `VOZEB_DATA_DIR=/app/web/.data` 固定到持久化目录，升级镜像不会丢失。
+
+## 低内存配置
+
+`docker-compose.lowmem.yml` 默认使用：
+
+- `ghcr.io/csyqlz/vozeb:latest` 预构建镜像。
+- `mem_limit: 512m` 和 `memswap_limit: 768m`。
+- `NODE_OPTIONS=--max-old-space-size=384` 限制 Node.js 堆内存。
+- `UV_THREADPOOL_SIZE=2` 减少低配机器上的线程开销。
+
+## 升级
+
+```bash
+docker compose -f docker-compose.lowmem.yml pull
+docker compose -f docker-compose.lowmem.yml up -d
+docker image prune -f
+```
+
+如果机器只有 0.5G 内存，建议保留 512M-1G swap。没有 swap 时，镜像拉取、解压或页面首次访问都更容易被系统杀掉。
+
+## 速度建议
+
+- 首页首屏不会立即加载提示词库封面，滚动到展示区域附近才会请求。
+- 公共提示词种子只在首次初始化提示词库时按需加载。
+- 公共提示词 API 有短缓存，减少重复返回页面时的服务端读盘。
+- 管理后台提示词列表在手机端使用卡片布局，避免表格溢出和横向滚动。

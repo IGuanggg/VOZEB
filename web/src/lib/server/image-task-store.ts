@@ -59,6 +59,11 @@ export function getImageTask(id: string) {
     return tasks.get(id) || null;
 }
 
+export function countActiveImageTasksForUser(userId: string) {
+    cleanupImageTasks();
+    return Array.from(tasks.values()).filter((task) => task.userId === userId && (task.status === "pending" || task.status === "running")).length;
+}
+
 export function updateImageTask(id: string, patch: Partial<Pick<ImageTask, "status" | "result" | "error" | "pointsRemaining">>) {
     const task = tasks.get(id);
     if (!task) return null;

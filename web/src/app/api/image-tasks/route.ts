@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 
 import { getCurrentUser } from "@/lib/auth/session";
+import { getAuthSettings } from "@/lib/auth/store";
 import { configureServerProxyDispatcher } from "@/lib/server/proxy-dispatcher";
-import { createImageTask, updateImageTask, type ImageTask, type ImageTaskConfig, type ImageTaskReference } from "@/lib/server/image-task-store";
+import { countActiveImageTasksForUser, createImageTask, updateImageTask, type ImageTask, type ImageTaskConfig, type ImageTaskReference } from "@/lib/server/image-task-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -59,6 +60,10 @@ const IMAGE_OUTPUT_FORMAT = "png";
 
 export async function POST(request: Request) {
     const currentUser = await getCurrentUser();
+    const settings = currentUser ? await getAuthSettings() : null;
+    if (currentUser && settings && countActiveImageTasksForUser(currentUser.id) >= settings.generationConcurrency.image) {
+        return NextResponse.json({ error: "当前用户生图任务已达到并发上限，请稍后再试" }, { status: 429 });
+    }
     if (!currentUser) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
     const body = (await request.json().catch(() => ({}))) as CreateImageTaskBody;

@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 
 import { AuthInputError } from "@/lib/auth/store";
-import originalAuthorSeeds from "@/lib/prompts/original-author-seeds.json";
+import { resolveServerDataPath } from "@/lib/server/data-dir";
 
 export type PromptScope = "library" | "user";
 
@@ -59,7 +59,7 @@ type PromptListOptions = {
     pageSize?: number;
 };
 
-const PROMPT_DATA_FILE = resolve(process.cwd(), ".data", "prompts.json");
+const PROMPT_DATA_FILE = resolveServerDataPath("prompts.json");
 const DEFAULT_COVER_URL = "";
 const LEGACY_ORIGINAL_AUTHOR_SEED_SOURCE_PREFIX = `basketikun/${"in"}finite-canvas-prompts`;
 const ORIGINAL_AUTHOR_SEED_SOURCE_PREFIX = "vozeb/original-author-prompts";
@@ -195,7 +195,7 @@ async function readPromptDb({ includeSeeds }: { includeSeeds: boolean }): Promis
 
 async function ensureOriginalAuthorPrompts(db: PromptDatabase) {
     if (db.seedSources.includes(ORIGINAL_AUTHOR_SEED_SOURCE)) return db;
-    const seeds = originalAuthorSeeds as OriginalAuthorSeed[];
+    const seeds = (await import("@/lib/prompts/original-author-seeds.json")).default as OriginalAuthorSeed[];
     if (!seeds.length) return db;
     const now = new Date().toISOString();
     db.prompts = db.prompts.filter((item) => !isOriginalAuthorSeedSource(item.source));

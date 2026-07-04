@@ -49,6 +49,12 @@ export type AiConfig = {
     count: string;
     canvasImageCount: string;
     modelPointCosts: Record<string, number>;
+    generationConcurrency: GenerationConcurrencySettings;
+};
+
+export type GenerationConcurrencySettings = {
+    image: number;
+    video: number;
 };
 
 export type WebdavSyncConfig = {
@@ -106,6 +112,7 @@ export const defaultConfig: AiConfig = {
     count: "1",
     canvasImageCount: "1",
     modelPointCosts: {},
+    generationConcurrency: { image: 4, video: 1 },
 };
 
 export const defaultWebdavSyncConfig: WebdavSyncConfig = {
@@ -251,6 +258,7 @@ export const useConfigStore = create<ConfigStore>()(
                         videoWatermark: config.videoWatermark || "false",
                         canvasImageCount: config.canvasImageCount || "1",
                         modelPointCosts: isRecord(persistedConfig.modelPointCosts) ? normalizeModelPointCosts(persistedConfig.modelPointCosts) : {},
+                        generationConcurrency: normalizeGenerationConcurrency(persistedConfig.generationConcurrency),
                         imageModels: Array.isArray(persistedConfig.imageModels) ? normalizeModelList(config.imageModels, channels) : filterModelsByCapability(models, "image"),
                         videoModels: Array.isArray(persistedConfig.videoModels) ? normalizeModelList(config.videoModels, channels) : filterModelsByCapability(models, "video"),
                         textModels: Array.isArray(persistedConfig.textModels) ? normalizeModelList(config.textModels, channels) : filterModelsByCapability(models, "text"),
@@ -279,6 +287,19 @@ function normalizeModelPointCosts(costs: Record<string, unknown>) {
             .map(([model, value]) => [model.trim(), Math.max(0, Number(value) || 0)] as const)
             .filter(([model]) => Boolean(model)),
     );
+}
+
+export function normalizeGenerationConcurrency(settings?: Partial<GenerationConcurrencySettings>) {
+    return {
+        image: clampInteger(settings?.image, 1, 10, defaultConfig.generationConcurrency.image),
+        video: clampInteger(settings?.video, 1, 5, defaultConfig.generationConcurrency.video),
+    };
+}
+
+function clampInteger(value: unknown, min: number, max: number, fallback: number) {
+    const numberValue = Math.floor(Number(value));
+    if (!Number.isFinite(numberValue)) return fallback;
+    return Math.max(min, Math.min(max, numberValue));
 }
 
 export function useEffectiveConfig() {

@@ -15,5 +15,9 @@ export async function GET(request: NextRequest) {
         page: Math.max(1, Number(params.get("page")) || 1),
         pageSize: Math.max(1, Math.min(100, Number(params.get("pageSize")) || 20)),
     });
-    return Response.json(result);
+    return Response.json(result, {
+        headers: {
+            "Cache-Control": "private, max-age=30, stale-while-revalidate=120",
+        },
+    });
 }

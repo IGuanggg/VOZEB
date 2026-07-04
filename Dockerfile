@@ -30,6 +30,9 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV HOSTNAME=0.0.0.0
 ENV PORT=3000
+ENV VOZEB_DATA_DIR=/app/web/.data
+ENV NODE_OPTIONS=--max-old-space-size=384
+ENV UV_THREADPOOL_SIZE=2
 
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 

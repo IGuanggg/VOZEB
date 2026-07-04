@@ -10,7 +10,7 @@ import { fetchChannelModels } from "@/services/api/image";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
-import { encodeChannelModel, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeModelOptionValue, useConfigStore, type AiConfig, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import { encodeChannelModel, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeGenerationConcurrency, normalizeModelOptionValue, useConfigStore, type AiConfig, type GenerationConcurrencySettings, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -31,6 +31,7 @@ type WebdavDomainProgress = {
 type PublicSystemSettings = {
     allowUserApiConfig: boolean;
     modelPointCosts: Record<string, number>;
+    generationConcurrency: GenerationConcurrencySettings;
     defaultModels: {
         imageModel: string;
         videoModel: string;
@@ -95,9 +96,10 @@ export function AppConfigModal() {
             .then((payload: { settings?: PublicSystemSettings }) => {
                 setSystemSettings(payload.settings || null);
                 updateConfig("modelPointCosts", payload.settings?.modelPointCosts || {});
+                if (payload.settings?.generationConcurrency) updateConfig("generationConcurrency", normalizeGenerationConcurrency(payload.settings.generationConcurrency));
             })
             .catch(() => setSystemSettings(null));
-    }, [isConfigOpen]);
+    }, [isConfigOpen, updateConfig]);
 
     useEffect(() => {
         if (systemSettings?.allowUserApiConfig === false && config.apiSource === "custom") updateConfig("apiSource", "system");

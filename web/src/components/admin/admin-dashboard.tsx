@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Checkbox, Form, Input, InputNumber, Modal, Popconfirm, Select, Space, Switch, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
-import { Database, Download, Gift, Globe2, Image as ImageIcon, KeyRound, Mail, PlugZap, Plus, RefreshCw, Save, Search, Send, ShieldCheck, SlidersHorizontal, Trash2, Upload, UserCog, UserRound, UsersRound } from "lucide-react";
+import { Database, Download, Gift, Globe2, Image as ImageIcon, KeyRound, Mail, PlugZap, Plus, RefreshCw, Save, Search, Send, ShieldCheck, SlidersHorizontal, Sparkles, Trash2, Upload, UserCog, UserRound, UsersRound } from "lucide-react";
 import { nanoid } from "nanoid";
 
 import { DEFAULT_MODEL_POINT_COST_KEY } from "@/constant/credits";
@@ -352,6 +352,16 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
 
     const updateCheckInRewardPoints = (value: number | null) => {
         setSettings((current) => ({ ...current, checkInRewardPoints: toNumberOrZero(value) }));
+    };
+
+    const updateGenerationConcurrency = (key: keyof AuthSettings["generationConcurrency"], value: number | null) => {
+        setSettings((current) => ({
+            ...current,
+            generationConcurrency: {
+                ...current.generationConcurrency,
+                [key]: clampInteger(value, 1, key === "image" ? 10 : 5, key === "image" ? 4 : 1),
+            },
+        }));
     };
 
     const updateModelPointCost = (model: string, value: number | null) => {
@@ -892,16 +902,19 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
                                         </div>
                                     </div>
                                 </div>
-                                <QuotaRuleTable
-                                    settings={settings}
-                                    customModel={customPointModel}
-                                    onCustomModelChange={setCustomPointModel}
-                                    onAddCustomModel={addCustomPointModel}
-                                    onDefaultPointsChange={updateDefaultPoints}
-                                    onCheckInRewardPointsChange={updateCheckInRewardPoints}
-                                    onModelPointCostChange={updateModelPointCost}
-                                    onModelPointCostDelete={deleteModelPointCost}
-                                />
+                                <div className="space-y-4">
+                                    <GenerationConcurrencyPanel settings={settings} onChange={updateGenerationConcurrency} />
+                                    <QuotaRuleTable
+                                        settings={settings}
+                                        customModel={customPointModel}
+                                        onCustomModelChange={setCustomPointModel}
+                                        onAddCustomModel={addCustomPointModel}
+                                        onDefaultPointsChange={updateDefaultPoints}
+                                        onCheckInRewardPointsChange={updateCheckInRewardPoints}
+                                        onModelPointCostChange={updateModelPointCost}
+                                        onModelPointCostDelete={deleteModelPointCost}
+                                    />
+                                </div>
                             </div>
                             <div className="flex justify-stretch border-b border-stone-200 pb-5 sm:justify-end dark:border-stone-800">
                                 <Button
@@ -918,12 +931,13 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
                                                 defaultPoints: settings.defaultPoints,
                                                 checkInRewardPoints: settings.checkInRewardPoints,
                                                 modelPointCosts: settings.modelPointCosts,
+                                                generationConcurrency: settings.generationConcurrency,
                                             },
-                                            "账号、邮箱与积分设置已保存",
+                                            "账号、邮箱、积分与并发设置已保存",
                                         )
                                     }
                                 >
-                                    保存账号、邮箱与积分
+                                    保存账号、邮箱、积分与并发
                                 </Button>
                             </div>
 
@@ -1313,6 +1327,23 @@ function SettingInlineToggle({ title, checked, checkedChildren, unCheckedChildre
     );
 }
 
+function GenerationConcurrencyPanel({ settings, onChange }: { settings: AuthSettings; onChange: (key: keyof AuthSettings["generationConcurrency"], value: number | null) => void }) {
+    return (
+        <div className="rounded-lg border border-stone-200 bg-stone-50/70 p-4 dark:border-stone-800 dark:bg-stone-900/40">
+            <SectionTitle icon={<Sparkles className="size-4" />} title="每用户并发上限" />
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <LabeledControl label="生图同时生成">
+                    <InputNumber className="w-full" min={1} max={10} precision={0} value={settings.generationConcurrency.image} onChange={(value) => onChange("image", value)} />
+                </LabeledControl>
+                <LabeledControl label="视频同时生成">
+                    <InputNumber className="w-full" min={1} max={5} precision={0} value={settings.generationConcurrency.video} onChange={(value) => onChange("video", value)} />
+                </LabeledControl>
+            </div>
+            <div className="mt-2 text-xs leading-5 text-stone-500 dark:text-stone-400">限制的是单个用户自己的并发任务，不是全站共享上限。</div>
+        </div>
+    );
+}
+
 function QuotaRuleTable({
     settings,
     customModel,
@@ -1500,6 +1531,12 @@ function toNumberOrZero(value: unknown) {
 function toNumberOrOne(value: unknown) {
     const numberValue = Number(value);
     return Number.isFinite(numberValue) && numberValue >= 0 ? Number(numberValue.toFixed(2)) : 1;
+}
+
+function clampInteger(value: unknown, min: number, max: number, fallback: number) {
+    const numberValue = Math.floor(Number(value));
+    if (!Number.isFinite(numberValue)) return fallback;
+    return Math.max(min, Math.min(max, numberValue));
 }
 
 const defaultModelKeys = [

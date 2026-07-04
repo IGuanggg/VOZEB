@@ -6,6 +6,7 @@
     "quick-start",
     "codex-app-plugin",
     "features",
+    "low-memory",
     "render",
     "docker",
     "third-party-prompt-repositories",

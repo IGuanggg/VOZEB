@@ -10,7 +10,7 @@ import { AppConfigModal } from "@/components/layout/app-config-modal";
 import { MobileNavDrawer } from "@/components/layout/mobile-nav-drawer";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { cn } from "@/lib/utils";
-import { useConfigStore } from "@/stores/use-config-store";
+import { normalizeGenerationConcurrency, useConfigStore, type GenerationConcurrencySettings } from "@/stores/use-config-store";
 import { type LocalUser, useUserStore } from "@/stores/use-user-store";
 
 type PublicSiteSettings = {
@@ -31,11 +31,12 @@ export function AppTopNav() {
 
     useEffect(() => {
         void fetch("/api/auth/session")
-            .then((response) => response.json() as Promise<{ user?: LocalUser | null; settings?: { site?: PublicSiteSettings; modelPointCosts?: Record<string, number> } }>)
+            .then((response) => response.json() as Promise<{ user?: LocalUser | null; settings?: { site?: PublicSiteSettings; modelPointCosts?: Record<string, number>; generationConcurrency?: GenerationConcurrencySettings } }>)
             .then((payload) => {
                 if (payload.settings?.site) setSite(payload.settings.site);
                 if (payload.user) setUser(payload.user);
                 updateConfig("modelPointCosts", payload.settings?.modelPointCosts || {});
+                if (payload.settings?.generationConcurrency) updateConfig("generationConcurrency", normalizeGenerationConcurrency(payload.settings.generationConcurrency));
             })
             .catch(() => undefined);
     }, [setUser, updateConfig]);

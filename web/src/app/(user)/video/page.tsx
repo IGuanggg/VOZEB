@@ -76,6 +76,10 @@ export default function VideoPage() {
     const { message } = App.useApp();
     const fileInputRef = useRef<HTMLInputElement>(null);
     const activeLogIdsRef = useRef<Set<string>>(new Set());
+    const startingVideoTasksRef = useRef(0);
+    const queuedVideoLogsRef = useRef<Array<{ log: GenerationLog; configOverride?: AiConfig }>>([]);
+    const queuedVideoLogIdsRef = useRef<Set<string>>(new Set());
+    const videoConcurrencyLimitRef = useRef(1);
     const activeLogIdRef = useRef<string | null>(null);
     const logsRef = useRef<GenerationLog[]>([]);
     const deletedResultLogIdsRef = useRef(new Set<string>());
@@ -91,13 +95,11 @@ export default function VideoPage() {
     const [audioReferences, setAudioReferences] = useState<ReferenceAudio[]>([]);
     const [results, setResults] = useState<GenerationResult[]>([]);
     const [logs, setLogs] = useState<GenerationLog[]>([]);
-    const [running, setRunning] = useState(false);
+    const [activeVideoCount, setActiveVideoCount] = useState(0);
     const [logsOpen, setLogsOpen] = useState(false);
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [promptDialogOpen, setPromptDialogOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
-    const [startedAt, setStartedAt] = useState(0);
-    const [elapsedMs, setElapsedMs] = useState(0);
     const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
     const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
     const [previewLog, setPreviewLog] = useState<GenerationLog | null>(null);
@@ -106,16 +108,17 @@ export default function VideoPage() {
     const model = effectiveConfig.videoModel || effectiveConfig.model;
     const pointsCost = requestCreditCost({ apiSource: effectiveConfig.apiSource, modelPointCosts: effectiveConfig.modelPointCosts, model });
     const canGenerate = Boolean(prompt.trim());
-
-    useEffect(() => {
-        if (!running || !startedAt) return;
-        const timer = window.setInterval(() => setElapsedMs(performance.now() - startedAt), 1000);
-        return () => window.clearInterval(timer);
-    }, [running, startedAt]);
+    const videoConcurrencyLimit = Math.max(1, Math.min(5, Math.floor(Number(effectiveConfig.generationConcurrency?.video) || 1)));
+    const previewPendingCount = results.filter((result) => result.status === "pending").length;
 
     useEffect(() => {
         void refreshLogs();
     }, []);
+
+    useEffect(() => {
+        videoConcurrencyLimitRef.current = videoConcurrencyLimit;
+        startQueuedVideoLogs();
+    }, [videoConcurrencyLimit]);
 
     const addReferences = async (files?: FileList | null) => {
         const selectedFiles = Array.from(files || []);
@@ -174,25 +177,81 @@ export default function VideoPage() {
             message.error("剪切板里没有可读取的图片");
         }
     };
+
+    function currentVideoTaskCount() {
+        return activeLogIdsRef.current.size + startingVideoTasksRef.current;
+    }
+
+    function syncActiveVideoCount() {
+        const count = currentVideoTaskCount();
+        setActiveVideoCount(count);
+    }
+
+    function beginStartingVideoTask() {
+        startingVideoTasksRef.current += 1;
+        syncActiveVideoCount();
+    }
+
+    function finishStartingVideoTask() {
+        startingVideoTasksRef.current = Math.max(0, startingVideoTasksRef.current - 1);
+        syncActiveVideoCount();
+    }
+
+    function enqueueVideoLog(log: GenerationLog, configOverride?: AiConfig) {
+        if (!log.task || activeLogIdsRef.current.has(log.id) || queuedVideoLogIdsRef.current.has(log.id) || deletedResultLogIdsRef.current.has(log.id)) return;
+        queuedVideoLogIdsRef.current.add(log.id);
+        queuedVideoLogsRef.current.push({ log, configOverride });
+    }
+
+    function removeQueuedVideoLog(logId: string) {
+        queuedVideoLogIdsRef.current.delete(logId);
+        queuedVideoLogsRef.current = queuedVideoLogsRef.current.filter((item) => item.log.id !== logId);
+    }
+
+    function startQueuedVideoLogs() {
+        while (currentVideoTaskCount() < videoConcurrencyLimitRef.current && queuedVideoLogsRef.current.length) {
+            const item = queuedVideoLogsRef.current.shift();
+            if (!item) return;
+            queuedVideoLogIdsRef.current.delete(item.log.id);
+            if (deletedResultLogIdsRef.current.has(item.log.id)) continue;
+            void pollGenerationLog(item.log, item.configOverride);
+        }
+        syncActiveVideoCount();
+    }
+
+    function scheduleVideoLog(log: GenerationLog, configOverride?: AiConfig) {
+        if (!log.task || activeLogIdsRef.current.has(log.id) || deletedResultLogIdsRef.current.has(log.id)) return;
+        if (currentVideoTaskCount() >= videoConcurrencyLimitRef.current) {
+            enqueueVideoLog(log, configOverride);
+            syncActiveVideoCount();
+            return;
+        }
+        void pollGenerationLog(log, configOverride);
+    }
+
     const generate = async () => {
         const snapshot = buildRequestSnapshot();
         if (!snapshot) return;
-        setElapsedMs(0);
-        setRunning(true);
+        if (currentVideoTaskCount() >= videoConcurrencyLimitRef.current) {
+            message.warning("当前用户视频生成已达到并发上限，请稍后再试");
+            return;
+        }
+        beginStartingVideoTask();
         setPreviewLog(null);
         setSelectedResultIds([]);
         setResults([{ id: nanoid(), status: "pending" }]);
         const batchStartedAt = performance.now();
-        setStartedAt(batchStartedAt);
         try {
             const task = await createVideoGenerationTask(snapshot.config, snapshot.text, snapshot.references, snapshot.videoReferences, snapshot.audioReferences);
             const log = buildLog({ prompt: snapshot.text, model, config: snapshot.config, references: snapshot.references, videoReferences: snapshot.videoReferences, audioReferences: snapshot.audioReferences, durationMs: 0, status: "生成中", task });
             activeLogIdRef.current = log.id;
             setPreviewLog(log);
             setResults([{ id: log.id, status: "pending" }]);
-            await saveLog(log);
-            void pollGenerationLog(log, snapshot.config);
+            await saveLog(log, { refresh: false });
+            finishStartingVideoTask();
+            scheduleVideoLog(log, snapshot.config);
         } catch (error) {
+            finishStartingVideoTask();
             const errorMessage = error instanceof Error ? error.message : "生成失败";
             const failedLog = buildLog({
                 prompt: snapshot.text,
@@ -210,7 +269,7 @@ export default function VideoPage() {
             setResults([{ id: failedLog.id, status: "failed", error: errorMessage }]);
             await saveLog(failedLog);
             message.error(errorMessage);
-            setRunning(false);
+            startQueuedVideoLogs();
         }
     };
 
@@ -272,8 +331,6 @@ export default function VideoPage() {
         setVideoReferences([]);
         setAudioReferences([]);
         setResults([]);
-        setElapsedMs(0);
-        setStartedAt(0);
         setSelectedLogIds([]);
         setSelectedResultIds([]);
         setPreviewLog(null);
@@ -285,6 +342,13 @@ export default function VideoPage() {
             .filter((log) => selectedLogIds.includes(log.id))
             .map((log) => log.video?.storageKey)
             .filter((key): key is string => Boolean(key));
+        selectedLogIds.forEach((id) => {
+            deletedResultLogIdsRef.current.add(id);
+            removeQueuedVideoLog(id);
+            activeLogIdsRef.current.delete(id);
+        });
+        syncActiveVideoCount();
+        startQueuedVideoLogs();
         void Promise.all([deleteStoredMedia(mediaKeys), ...selectedLogIds.flatMap((id) => [logStore.removeItem(id), legacyLogStore.removeItem(id)])]).then(refreshLogs);
         if (previewLog && selectedLogIds.includes(previewLog.id)) {
             setPreviewLog(null);
@@ -296,13 +360,13 @@ export default function VideoPage() {
         setDeleteConfirmOpen(false);
     };
 
-    const saveLog = async (log: GenerationLog) => {
+    const saveLog = async (log: GenerationLog, options?: { refresh?: boolean }) => {
         const nextLogs = [log, ...logsRef.current.filter((item) => item.id !== log.id)].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
         logsRef.current = nextLogs;
         setLogs(nextLogs);
         if (activeLogIdRef.current === log.id) setPreviewLog(log);
         await logStore.setItem(log.id, serializeLog(log));
-        await refreshLogs();
+        if (options?.refresh !== false) await refreshLogs();
     };
 
     const refreshLogs = async () => {
@@ -319,15 +383,19 @@ export default function VideoPage() {
 
     const resumePendingLogs = (items: GenerationLog[]) => {
         for (const log of items) {
-            if (log.status === "生成中" && log.task) void pollGenerationLog(log);
+            if (log.status === "生成中" && log.task) scheduleVideoLog(log);
         }
     };
 
     const pollGenerationLog = async (log: GenerationLog, configOverride?: AiConfig) => {
         if (!log.task || activeLogIdsRef.current.has(log.id)) return;
+        if (currentVideoTaskCount() >= videoConcurrencyLimitRef.current) {
+            enqueueVideoLog(log, configOverride);
+            syncActiveVideoCount();
+            return;
+        }
         activeLogIdsRef.current.add(log.id);
-        setRunning(true);
-        setStartedAt((value) => value || performance.now());
+        syncActiveVideoCount();
         if (!activeLogIdRef.current) activeLogIdRef.current = log.id;
         if (activeLogIdRef.current === log.id) {
             setPreviewLog(log);
@@ -374,10 +442,8 @@ export default function VideoPage() {
             message.error(errorMessage);
         } finally {
             activeLogIdsRef.current.delete(log.id);
-            if (!activeLogIdsRef.current.size) {
-                setRunning(false);
-                setStartedAt(0);
-            }
+            syncActiveVideoCount();
+            startQueuedVideoLogs();
         }
     };
 
@@ -419,6 +485,7 @@ export default function VideoPage() {
         const nextResults = results.filter((result) => !selectedIds.has(result.id));
         const mediaKeys = removedResults.flatMap((result) => (result.video?.storageKey ? [result.video.storageKey] : []));
         deletedResultLogIdsRef.current.add(currentLog.id);
+        removeQueuedVideoLog(currentLog.id);
         activeLogIdsRef.current.delete(currentLog.id);
         const keptVideo = nextResults.find((result) => result.status === "success" && result.video)?.video;
         const failedResult = nextResults.find((result) => result.status === "failed");
@@ -434,10 +501,8 @@ export default function VideoPage() {
         setResults(nextResults);
         setSelectedResultIds([]);
         setPreviewLog(nextLog);
-        if (!activeLogIdsRef.current.size) {
-            setRunning(false);
-            setStartedAt(0);
-        }
+        syncActiveVideoCount();
+        startQueuedVideoLogs();
         await Promise.all([deleteStoredMedia(mediaKeys), saveLog(nextLog)]);
         message.success(`已删除 ${removedResults.length} 个结果`);
     };
@@ -515,7 +580,7 @@ export default function VideoPage() {
                                             <ReferenceOrderButtons index={index} total={references.length} onMove={(offset) => setReferences((value) => moveListItem(value, index, offset))} />
                                             <button
                                                 type="button"
-                                                className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex"
+                                                className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-white/95 text-red-600 opacity-90 shadow-sm ring-1 ring-red-200 transition hover:opacity-100 dark:bg-black/70 dark:text-red-200 dark:ring-red-900/60"
                                                 onClick={() => setReferences((value) => value.filter((ref) => ref.id !== item.id))}
                                                 aria-label="移除参考图"
                                             >
@@ -542,7 +607,7 @@ export default function VideoPage() {
                                             <ReferenceOrderButtons index={index} total={videoReferences.length} onMove={(offset) => setVideoReferences((value) => moveListItem(value, index, offset))} />
                                             <button
                                                 type="button"
-                                                className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex"
+                                                className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-white/95 text-red-600 opacity-90 shadow-sm ring-1 ring-red-200 transition hover:opacity-100 dark:bg-black/70 dark:text-red-200 dark:ring-red-900/60"
                                                 onClick={() => setVideoReferences((value) => value.filter((ref) => ref.id !== item.id))}
                                                 aria-label="移除参考视频"
                                             >
@@ -573,7 +638,7 @@ export default function VideoPage() {
                                             <ReferenceOrderButtons index={index} total={audioReferences.length} onMove={(offset) => setAudioReferences((value) => moveListItem(value, index, offset))} />
                                             <button
                                                 type="button"
-                                                className="absolute right-1 top-1 hidden size-6 items-center justify-center rounded bg-black/60 text-white group-hover:flex"
+                                                className="absolute right-1 top-1 flex size-6 items-center justify-center rounded bg-white/95 text-red-600 opacity-90 shadow-sm ring-1 ring-red-200 transition hover:opacity-100 dark:bg-black/70 dark:text-red-200 dark:ring-red-900/60"
                                                 onClick={() => setAudioReferences((value) => value.filter((ref) => ref.id !== item.id))}
                                                 aria-label="移除参考音频"
                                             >
@@ -600,7 +665,7 @@ export default function VideoPage() {
                         </div>
 
                         <div className="mt-auto pt-6">
-                            <Button type="primary" size="large" block loading={running} disabled={!canGenerate || running} onClick={() => void generate()}>
+                            <Button type="primary" size="large" block disabled={!canGenerate || activeVideoCount >= videoConcurrencyLimit} onClick={() => void generate()}>
                                 <span className="inline-flex items-center justify-center gap-2">
                                     <span className="inline-flex items-center gap-1.5 tabular-nums">
                                         <Sparkles className="size-[17px]" />
@@ -609,6 +674,7 @@ export default function VideoPage() {
                                     <span>开始生成</span>
                                 </span>
                             </Button>
+                            {activeVideoCount ? <div className="mt-2 text-center text-xs text-stone-500 dark:text-stone-400">当前用户运行 {activeVideoCount}/{videoConcurrencyLimit}</div> : null}
                         </div>
                     </div>
 
@@ -626,7 +692,8 @@ export default function VideoPage() {
                                         </Button>
                                     </>
                                 ) : null}
-                                {running ? <Tag className="m-0 px-2 py-1">等待 {formatDuration(elapsedMs)}</Tag> : null}
+                                {previewPendingCount ? <Tag className="m-0 px-2 py-1" color="processing">生成中 {previewPendingCount}</Tag> : null}
+                                {activeVideoCount ? <Tag className="m-0 px-2 py-1">运行 {activeVideoCount}/{videoConcurrencyLimit}</Tag> : null}
                             </div>
                         </div>
                         {results.length ? (
@@ -860,9 +927,10 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                 onClick();
             }}
         >
-            <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-2">
-                <Checkbox className="mt-0.5" checked={selected} onClick={(event) => event.stopPropagation()} onChange={(event) => onSelectedChange(event.target.checked)} />
-                <div className="min-w-0">
+            <div className="grid min-w-0 gap-2">
+                <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2">
+                    <Checkbox className="mt-0.5" checked={selected} onClick={(event) => event.stopPropagation()} onChange={(event) => onSelectedChange(event.target.checked)} />
+                    <div className="min-w-0">
                     {editingTitle ? (
                         <Input
                             size="small"
@@ -899,13 +967,15 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                             />
                         </div>
                     )}
-                    <div className="mt-2 flex flex-wrap gap-1">
+                </div>
+                </div>
+                <div className="grid min-w-0 gap-2 pl-7">
+                    <div className="flex min-w-0 flex-wrap gap-1">
                         <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none">{log.size}</Tag>
                         <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none">{log.resolution}p</Tag>
                         <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none">{log.seconds}s</Tag>
                     </div>
-                </div>
-                <div className="grid justify-items-end gap-2">
+                    <div className="flex min-w-0 flex-wrap gap-1">
                     <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none" color={log.status === "成功" ? "blue" : log.status === "生成中" ? "processing" : "red"}>
                         {log.status}
                     </Tag>
@@ -914,6 +984,7 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                     </Tag>
                 </div>
             </div>
+        </div>
         </div>
     );
 }

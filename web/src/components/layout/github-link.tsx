@@ -1,6 +1,6 @@
 "use client";
 
-import { GithubOutlined } from "@ant-design/icons";
+import { CodeXml } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,7 @@ export function GitHubLink({ className, style }: GitHubLinkProps) {
             aria-label="GitHub"
             title="GitHub"
         >
-            <GithubOutlined className="text-base" />
+            <CodeXml className="size-4" />
         </a>
     );
 }
