@@ -43,6 +43,7 @@ export async function requestAudioGeneration(config: AiConfig, prompt: string, o
         await refreshUserPointsIfSystem(requestConfig.apiSource);
         return response.data.type.startsWith("audio/") ? response.data : new Blob([response.data], { type: audioMimeType(format) });
     } catch (error) {
+        await refreshUserPointsIfSystem(requestConfig.apiSource);
         throw new Error(readAxiosError(error, "音频生成失败"));
     }
 }

@@ -56,6 +56,11 @@ export type CanvasNodeMetadata = {
     mimeType?: string;
     bytes?: number;
     durationMs?: number;
+    videoTask?: {
+        id: string;
+        provider: "openai" | "seedance";
+        model: string;
+    };
 };
 
 export type CanvasNodeData = {

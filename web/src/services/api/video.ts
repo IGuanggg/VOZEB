@@ -37,15 +37,26 @@ function aiHeaders(config: AiConfig, contentType?: string) {
 
 export async function requestVideoGeneration(config: AiConfig, prompt: string, references: ReferenceImage[] = [], videoReferences: ReferenceVideo[] = [], audioReferences: ReferenceAudio[] = [], options?: RequestOptions): Promise<VideoGenerationResult> {
     const task = await createVideoGenerationTask(config, prompt, references, videoReferences, audioReferences, options);
+    return waitForVideoGenerationTask(config, task, options);
+}
+
+export async function waitForVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationResult> {
     const delayMs = task.provider === "seedance" ? 5000 : 2500;
     for (let attempt = 0; attempt < 120; attempt += 1) {
         if (options?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
         const state = await pollVideoGenerationTask(config, task, options);
         if (state.status === "completed") return state.result;
-        if (state.status === "failed") throw new Error(state.error);
-        if (attempt === 119) throw new Error(`${task.provider === "seedance" ? "Seedance " : ""}视频生成超时，请稍后重试`);
+        if (state.status === "failed") {
+            await refreshUserPointsIfSystem(resolveModelRequestConfig(config, task.model).apiSource);
+            throw new Error(state.error);
+        }
+        if (attempt === 119) {
+            await refreshUserPointsIfSystem(resolveModelRequestConfig(config, task.model).apiSource);
+            throw new Error(`${task.provider === "seedance" ? "Seedance " : ""}视频生成超时，请稍后重试`);
+        }
         await delay(delayMs, options?.signal);
     }
+    await refreshUserPointsIfSystem(resolveModelRequestConfig(config, task.model).apiSource);
     throw new Error("视频生成超时，请稍后重试");
 }
 
@@ -92,6 +103,7 @@ async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: st
         await refreshUserPointsIfSystem(config.apiSource);
         return { id: created.id, provider: "openai", model };
     } catch (error) {
+        await refreshUserPointsIfSystem(config.apiSource);
         throw new Error(readAxiosError(error, "视频任务创建失败"));
     }
 }
@@ -137,6 +149,7 @@ async function createSeedanceTask(config: AiConfig, model: string, prompt: strin
         await refreshUserPointsIfSystem(config.apiSource);
         return { id: created.id, provider: "seedance", model };
     } catch (error) {
+        await refreshUserPointsIfSystem(config.apiSource);
         throw new Error(readAxiosError(error, "Seedance 任务创建失败"));
     }
 }

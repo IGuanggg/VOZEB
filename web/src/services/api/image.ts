@@ -606,6 +606,7 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
             await refreshUserPointsIfSystem(requestConfig.apiSource);
             return images;
         } catch (error) {
+            await refreshUserPointsIfSystem(requestConfig.apiSource);
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
@@ -633,6 +634,7 @@ export async function requestGeneration(config: AiConfig, prompt: string, option
         await refreshUserPointsIfSystem(requestConfig.apiSource);
         return images;
     } catch (error) {
+        await refreshUserPointsIfSystem(requestConfig.apiSource);
         throw new Error(readAxiosError(error, "请求失败"));
     }
 }
@@ -648,6 +650,7 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
             await refreshUserPointsIfSystem(requestConfig.apiSource);
             return images;
         } catch (error) {
+            await refreshUserPointsIfSystem(requestConfig.apiSource);
             throw new Error(readAxiosError(error, "请求失败"));
         }
     }
@@ -676,6 +679,7 @@ export async function requestEdit(config: AiConfig, prompt: string, references: 
         await refreshUserPointsIfSystem(requestConfig.apiSource);
         return images;
     } catch (error) {
+        await refreshUserPointsIfSystem(requestConfig.apiSource);
         throw new Error(readAxiosError(error, "请求失败"));
     }
 }
@@ -705,6 +709,7 @@ export async function requestImageQuestion(config: AiConfig, messages: AiTextMes
         await refreshUserPointsIfSystem(requestConfig.apiSource);
         return answer;
     } catch (error) {
+        await refreshUserPointsIfSystem(requestConfig.apiSource);
         throw new Error(readAxiosError(error, "请求失败"));
     }
 }
@@ -732,6 +737,7 @@ export async function requestToolResponse(config: AiConfig, messages: ResponseIn
         await refreshUserPointsIfSystem(requestConfig.apiSource);
         return result;
     } catch (error) {
+        await refreshUserPointsIfSystem(requestConfig.apiSource);
         throw new Error(readAxiosError(error, "请求失败"));
     }
 }
