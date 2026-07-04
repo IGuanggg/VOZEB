@@ -311,6 +311,29 @@ export async function consumeUserPoints(userId: string, model: string, amount = 
     });
 }
 
+export async function refundUserPoints(userId: string, model: string, amount: number) {
+    return mutateAuthDb((db) => {
+        const user = db.users.find((item) => item.id === userId);
+        if (!user) return null;
+
+        const refund = Math.max(0, Math.floor(Number(amount) || 0));
+        if (!refund) return toPublicUser(user, db);
+
+        user.pointsBalance = normalizePoints(user.pointsBalance, db.settings.defaultPoints) + refund;
+        user.updatedAt = new Date().toISOString();
+        addPointRecord(db, {
+            userId,
+            type: "admin-adjust",
+            amount: refund,
+            balanceAfter: user.pointsBalance,
+            description: `接口调用失败退回：${model.trim()}`,
+            model: model.trim(),
+            createdAt: user.updatedAt,
+        });
+        return toPublicUser(user, db);
+    });
+}
+
 export async function createUser(input: { username: string; email?: string; emailCode?: string; displayName?: string; password: string }) {
     return mutateAuthDb((db) => {
         const username = normalizeUsername(input.username);

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { consumeUserPoints, getAuthSettings, isQuotaExceededError, type ApiCallFormat } from "@/lib/auth/store";
+import { consumeUserPoints, getAuthSettings, isQuotaExceededError, refundUserPoints, type ApiCallFormat } from "@/lib/auth/store";
 import { getCurrentUser } from "@/lib/auth/session";
 
 export const runtime = "nodejs";
@@ -60,12 +60,24 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
         }
     }
 
-    const upstream = await fetch(target, {
-        method: request.method,
-        headers,
-        body,
-        cache: "no-store",
-    });
+    let upstream: Response;
+    try {
+        upstream = await fetch(target, {
+            method: request.method,
+            headers,
+            body,
+            cache: "no-store",
+        });
+    } catch (error) {
+        if (pointsResult) await refundUserPoints(currentUser.id, pointsResult.model, pointsResult.cost);
+        console.error("System API proxy request failed", error);
+        return NextResponse.json({ error: "默认接口请求失败，请稍后重试" }, { status: 502 });
+    }
+
+    if (!upstream.ok && pointsResult) {
+        await refundUserPoints(currentUser.id, pointsResult.model, pointsResult.cost);
+        pointsResult = null;
+    }
 
     return new Response(upstream.body, {
         status: upstream.status,
