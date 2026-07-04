@@ -54,11 +54,16 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const canvasTheme = canvasThemes[theme];
     const showAdminMetaActions = user?.role === "admin";
+    const defaultControlClass =
+        "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-white/85 text-sm font-medium text-stone-700 shadow-sm shadow-stone-950/5 transition hover:border-stone-300 hover:bg-stone-50 hover:text-stone-950 dark:border-stone-800 dark:bg-stone-950/35 dark:text-stone-200 dark:shadow-black/15 dark:hover:border-stone-700 dark:hover:bg-stone-900 dark:hover:text-white";
     const naturalIconClass =
-        "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-stone-600 transition hover:bg-stone-100 hover:text-stone-950 sm:size-7 sm:hover:bg-transparent dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-white sm:dark:hover:bg-transparent [&_svg]:size-4";
+        variant === "canvas"
+            ? "inline-flex size-8 shrink-0 items-center justify-center rounded-md text-stone-600 transition hover:bg-stone-100 hover:text-stone-950 sm:size-7 sm:hover:bg-transparent dark:text-stone-300 dark:hover:bg-stone-800 dark:hover:text-white sm:dark:hover:bg-transparent [&_svg]:size-4"
+            : cn(defaultControlClass, "w-8 px-0 [&_svg]:size-4");
     const iconStyle: CSSProperties | undefined = variant === "canvas" ? { color: canvasTheme.node.text } : undefined;
     const versionStyle = iconStyle;
-    const gitHubClassName = "size-7 text-base";
+    const versionClassName = variant === "canvas" ? undefined : cn(defaultControlClass, "px-2.5 text-xs font-semibold");
+    const gitHubClassName = variant === "canvas" ? "size-7 bg-transparent text-base hover:bg-transparent dark:hover:bg-transparent" : cn(defaultControlClass, "w-8 px-0 text-base");
     const gitHubStyle = iconStyle;
     const showCheckIn = variant !== "canvas";
     const checkInLabel = checkingIn ? "签到中" : user?.checkedInToday ? "已签到" : "签到";
@@ -145,7 +150,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     };
 
     return (
-        <div className={cn("inline-flex shrink-0 items-center gap-1", variant === "canvas" && "canvas-user-status-actions")}>
+        <div className={cn("inline-flex shrink-0 items-center gap-2", variant === "canvas" && "canvas-user-status-actions")}>
             {user ? (
                 <Popover
                     open={pointsOpen}
@@ -159,7 +164,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                 >
                     <button
                         type="button"
-                        className="hidden h-8 shrink-0 items-center gap-1.5 rounded-md border border-stone-200 px-2.5 text-xs font-semibold text-stone-700 transition hover:border-stone-300 hover:text-stone-950 sm:inline-flex dark:border-stone-800 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:text-white"
+                        className={cn(defaultControlClass, "hidden gap-1.5 px-2.5 text-xs font-semibold sm:inline-flex")}
                         style={iconStyle}
                         title="积分余额"
                     >
@@ -172,8 +177,8 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                 <button
                     type="button"
                     className={cn(
-                        "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-sky-500 bg-sky-500 px-3 text-sm font-semibold text-white shadow-sm shadow-sky-500/20 transition hover:border-sky-600 hover:bg-sky-600 disabled:cursor-default sm:h-7 sm:px-2.5 sm:text-xs dark:border-sky-400 dark:bg-sky-400 dark:text-slate-950 dark:shadow-sky-950/25 dark:hover:border-sky-300 dark:hover:bg-sky-300",
-                        user.checkedInToday && "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-200 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/12 dark:hover:text-emerald-200",
+                        "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-stone-200 bg-white/85 px-3 text-sm font-semibold text-sky-700 shadow-sm shadow-stone-950/5 transition hover:border-sky-200 hover:bg-sky-50 hover:text-sky-800 disabled:cursor-default dark:border-stone-800 dark:bg-stone-950/35 dark:text-sky-200 dark:shadow-black/15 dark:hover:border-sky-400/25 dark:hover:bg-sky-400/10 dark:hover:text-sky-100",
+                        user.checkedInToday && "border-emerald-200 bg-emerald-50/80 text-emerald-700 shadow-none hover:border-emerald-200 hover:bg-emerald-50/80 hover:text-emerald-700 dark:border-emerald-400/20 dark:bg-emerald-400/10 dark:text-emerald-200 dark:hover:border-emerald-400/20 dark:hover:bg-emerald-400/10 dark:hover:text-emerald-200",
                     )}
                     disabled={user.checkedInToday || checkingIn}
                     onClick={handleCheckIn}
@@ -190,9 +195,9 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
             ) : null}
             <AnimatedThemeToggler theme={theme} onThemeChange={setTheme} className={cn(naturalIconClass, variant === "canvas" && "canvas-theme-action")} style={iconStyle} aria-label={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"} title={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"} />
             {showAdminMetaActions ? (
-                <span className="canvas-admin-meta-actions inline-flex items-center gap-1">
-                    <VersionReleaseModal style={versionStyle} />
-                    <GitHubLink className={cn("bg-transparent hover:bg-transparent dark:hover:bg-transparent", gitHubClassName)} style={gitHubStyle} />
+                <span className={cn("canvas-admin-meta-actions inline-flex items-center", variant === "canvas" ? "gap-1" : "gap-2")}>
+                    <VersionReleaseModal className={versionClassName} style={versionStyle} />
+                    <GitHubLink className={gitHubClassName} style={gitHubStyle} />
                 </span>
             ) : null}
             {user ? (
@@ -200,7 +205,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                     <Dropdown menu={{ items: accountItems, onClick: handleMenuClick }} trigger={["click"]} placement="bottomRight">
                         <button
                             type="button"
-                            className={cn("ml-1 inline-flex h-8 max-w-[36px] items-center gap-2 rounded-md border border-stone-200 px-2.5 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:text-stone-950 sm:max-w-40 dark:border-stone-800 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:text-white", variant === "canvas" && "canvas-account-action")}
+                            className={cn(defaultControlClass, "max-w-[36px] gap-2 px-2.5 sm:max-w-40", variant === "canvas" && "canvas-account-action")}
                             style={iconStyle}
                             aria-label="账户菜单"
                             title="账户菜单"
@@ -213,7 +218,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
             ) : (
                 <Link
                     href="/login"
-                    className={cn("ml-1 inline-flex h-8 items-center gap-2 rounded-md border border-stone-200 px-2.5 text-sm font-medium text-stone-700 transition hover:border-stone-300 hover:text-stone-950 dark:border-stone-800 dark:text-stone-200 dark:hover:border-stone-700 dark:hover:text-white", variant === "canvas" && "canvas-account-action")}
+                    className={cn(defaultControlClass, "gap-2 px-2.5", variant === "canvas" && "canvas-account-action")}
                     style={iconStyle}
                 >
                     <UserCircle className="size-4" />
