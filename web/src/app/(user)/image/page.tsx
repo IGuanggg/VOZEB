@@ -482,7 +482,6 @@ export default function ImagePage() {
         setPreviewLog(currentLog);
         setLogsOpen(false);
         setPrompt(currentLog.prompt);
-        setReferences(currentLog.references || []);
         setSelectedResultIds([]);
         if (currentLog.config.imageModel || currentLog.model) updateConfig("imageModel", currentLog.config.imageModel || currentLog.model);
         if (currentLog.config.quality) updateConfig("quality", currentLog.config.quality);

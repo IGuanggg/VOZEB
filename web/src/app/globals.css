@@ -2032,15 +2032,29 @@
         margin-inline-start: 6px;
     }
 
-    @media (max-width: 520px) {
+    @media (max-width: 639px) {
+        .admin-log-date-range.ant-picker-range {
+            justify-self: stretch;
+            width: 100% !important;
+        }
+
         .admin-log-date-range.ant-picker-range .ant-picker-input {
-            flex-basis: 88px;
-            width: 88px;
+            flex: 1 1 0;
+            width: auto;
         }
 
         .admin-log-date-range.ant-picker-range .ant-picker-input > input {
-            flex-basis: 88px;
-            width: 88px;
+            flex: 1 1 0;
+            width: 100%;
+            text-align: center;
+        }
+
+        .admin-log-date-range.ant-picker-range .ant-picker-range-separator {
+            padding-inline: 6px;
+        }
+
+        .admin-log-date-range.ant-picker-range .ant-picker-suffix {
+            margin-inline-start: 4px;
         }
     }
 

@@ -2,7 +2,7 @@
 
 import type { CSSProperties } from "react";
 import { useEffect, useState } from "react";
-import { Gift, Keyboard, LogOut, Settings2, ShieldCheck, UserCircle } from "lucide-react";
+import { Keyboard, LogOut, Settings2, ShieldCheck, UserCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { MenuProps } from "antd";
@@ -60,6 +60,8 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     const versionStyle = iconStyle;
     const gitHubClassName = "size-7 text-base";
     const gitHubStyle = iconStyle;
+    const showCheckIn = variant !== "canvas";
+    const checkInLabel = checkingIn ? "签到中" : user?.checkedInToday ? "已签到" : "签到";
     const accountItems: MenuProps["items"] = [
         {
             key: "profile",
@@ -166,17 +168,19 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
                     </button>
                 </Popover>
             ) : null}
-            {user ? (
+            {user && showCheckIn ? (
                 <button
                     type="button"
-                    className={cn(naturalIconClass, variant === "canvas" && "canvas-checkin-action", user.checkedInToday && "cursor-default opacity-50 hover:text-stone-600 dark:hover:text-stone-300")}
-                    style={iconStyle}
+                    className={cn(
+                        "inline-flex h-8 shrink-0 items-center justify-center rounded-md border border-sky-500 bg-sky-500 px-3 text-sm font-semibold text-white shadow-sm shadow-sky-500/20 transition hover:border-sky-600 hover:bg-sky-600 disabled:cursor-default sm:h-7 sm:px-2.5 sm:text-xs dark:border-sky-400 dark:bg-sky-400 dark:text-slate-950 dark:shadow-sky-950/25 dark:hover:border-sky-300 dark:hover:bg-sky-300",
+                        user.checkedInToday && "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/12 dark:text-emerald-200 dark:hover:border-emerald-500/30 dark:hover:bg-emerald-500/12 dark:hover:text-emerald-200",
+                    )}
                     disabled={user.checkedInToday || checkingIn}
                     onClick={handleCheckIn}
                     aria-label={user.checkedInToday ? "今日已签到" : "每日签到"}
                     title={user.checkedInToday ? "今日已签到" : "每日签到"}
                 >
-                    <Gift className="size-4" />
+                    {checkInLabel}
                 </button>
             ) : null}
             {showConfig ? (

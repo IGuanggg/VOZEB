@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="web/public/logo.svg?v=0.7.9-white" width="108" alt="VOZEB logo">
+  <img src="web/public/logo.svg?v=0.8.0-white" width="108" alt="VOZEB logo">
 </p>
 
 <h1 align="center">VOZEB</h1>
 
 <p align="center">
   <a href="https://github.com/csyqlz/vozeb"><img src="https://img.shields.io/github/stars/csyqlz/vozeb?style=flat-square&logo=github" alt="GitHub stars"></a>
-  <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.7.9-2563eb?style=flat-square" alt="Version"></a>
+  <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.8.0-2563eb?style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-f97316?style=flat-square" alt="License"></a>
   <a href="https://vercel.com/"><img src="https://img.shields.io/badge/Vercel-ready-000000?style=flat-square&logo=vercel" alt="Vercel ready"></a>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-16.2-000000?style=flat-square&logo=nextdotjs" alt="Next.js"></a>
@@ -18,13 +18,13 @@
 
 VOZEB 是一款面向 AI 图片创作、素材管理和视觉方案迭代的开源工作台。它把无限画布、AI 生成、参考图编辑、提示词库、素材沉淀、用户权限、管理员配置和本地 Agent 能力放到同一个工作流里，适合个人创作者、本地部署场景和小团队内部使用。
 
-VOZEB 当前版本为 `v0.7.9`，这是基于原创开源画布项目继续开发的二开版本。感谢原创作者 basketikun 对无限画布、AI 创作工作流、Canvas Agent 和 Codex 插件能力的开源贡献。
+VOZEB 当前版本为 `v0.8.0`，这是基于原创开源画布项目继续开发的二开版本。感谢原创作者 basketikun 对无限画布、AI 创作工作流、Canvas Agent 和 Codex 插件能力的开源贡献。
 
 版本更新记录请查看 [GitHub Releases](https://github.com/csyqlz/vozeb/releases)。
 
 ## 最新更新
 
-`v0.7.9` 修复画布输入框光标偶发不显示：节点引用高亮层在聚焦编辑时不再把真实输入文字透明覆盖，输入、选择、插入 `@节点` 和继续编辑时光标会稳定显示；失焦后仍保留引用标签高亮效果。本地 standalone 预览新增 `pnpm start:standalone`，启动前会同步 `.next/static` 和 `public`，避免 3000 端口页面样式资源 404 后变成裸页面。本次不新增运行依赖，继续保持 0.5G 服务器和 GitHub Actions/GHCR 构建路径稳定。
+`v0.8.0` 优化后台生成日志手机端日期筛选：日期范围在手机端整行撑满，开始/结束日期均分显示，分隔符和日历图标收紧排列，避免日期控件悬在中间或显得松散。顶部每日签到入口改为文本按钮，未签到显示“签到”，签过后显示“已签到”，画布顶部不再显示签到按钮。生图工作台点击左侧生成记录时不再自动把该记录参考图插入当前参考图区，避免切换记录污染当前创作输入。本次不新增运行依赖，继续保持 0.5G 服务器和 GitHub Actions/GHCR 构建路径稳定。
 
 > [!CAUTION]
 > 项目仍处于快速开发阶段，不保证历史数据兼容。当前更适合个人或本地部署，不建议直接公网多人共用。
