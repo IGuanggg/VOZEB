@@ -1,22 +1,27 @@
 # syntax=docker/dockerfile:1.7
 
-FROM oven/bun:1.3.13 AS web-build
+FROM node:22-bookworm-slim AS web-build
 
 WORKDIR /app/web
 ARG BUILD_NODE_OPTIONS=--max-old-space-size=1536
 ARG NEXT_BUILD_CPUS=1
+ARG PNPM_VERSION=11.7.0
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV CI=1
 ENV NODE_OPTIONS=${BUILD_NODE_OPTIONS}
 ENV NEXT_BUILD_CPUS=${NEXT_BUILD_CPUS}
+ENV PNPM_HOME=/pnpm
+ENV PATH=${PNPM_HOME}:${PATH}
 
-COPY web/package.json web/bun.lock ./
-RUN --mount=type=cache,target=/root/.bun/install/cache bun install --frozen-lockfile --cache-dir=/root/.bun/install/cache
+RUN corepack enable && corepack prepare pnpm@${PNPM_VERSION} --activate
+
+COPY web/package.json web/pnpm-lock.yaml web/pnpm-workspace.yaml ./
+RUN --mount=type=cache,target=/pnpm/store pnpm install --frozen-lockfile --store-dir=/pnpm/store
 
 COPY VERSION /app/VERSION
 COPY CHANGELOG.md /app/CHANGELOG.md
 COPY web ./
-RUN --mount=type=cache,target=/app/web/.next/cache bun run build
+RUN --mount=type=cache,target=/app/web/.next/cache pnpm run build
 
 FROM node:22-bookworm-slim
 
