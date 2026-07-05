@@ -14,6 +14,7 @@ import { createTextGenerationTask, waitForTextGenerationTask, type TextGeneratio
 import { createVideoGenerationTask, storeGeneratedVideo, waitForVideoGenerationTask } from "@/services/api/video";
 import { DOCS_URL } from "@/constant/env";
 import { defaultConfig, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
+import { browserReadableMediaUrl } from "@/lib/browser-media-url";
 import { resolveImageUrl, resolveStoredImageDataUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { nanoid } from "nanoid";
@@ -3516,7 +3517,8 @@ function generatedContentFallback(content?: string, remoteFallback?: string, ser
     const localValue = value.startsWith("data:") ? value : "";
     const remoteUrl = isRemoteGeneratedUrl(remoteFallback || "") ? remoteFallback || "" : isRemoteGeneratedUrl(value) ? value : "";
     const serverUrl = isServerGeneratedUrl(serverFallback || "") ? serverFallback || "" : isServerGeneratedUrl(value) ? value : "";
-    return localValue || remoteUrl || serverUrl || (value && !value.startsWith("blob:") ? value : "");
+    const fallback = localValue || remoteUrl || serverUrl || (value && !value.startsWith("blob:") ? value : "");
+    return browserReadableMediaUrl(fallback);
 }
 
 async function hydrateAssistantImages(sessions: CanvasAssistantSession[]) {

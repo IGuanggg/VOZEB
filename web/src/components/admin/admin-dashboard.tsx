@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { App, Button, Checkbox, DatePicker, Form, Input, InputNumber, Modal, Pagination, Popconfirm, Segmented, Select, Space, Switch, Table, Tag } from "antd";
 import type { TableColumnsType } from "antd";
+import { browserReadableMediaUrl } from "@/lib/browser-media-url";
 import {
     Database,
     Download,
@@ -2059,8 +2060,10 @@ function generationLogAssetAddressLabel(url: string) {
 }
 
 function generationLogAssetAccessUrl(asset: StoredGenerationLog["assets"][number], settings: AuthSettings["generationAssetStorage"]) {
-    void settings;
-    return asset.remoteUrl || (asset.url && !asset.url.startsWith("/api/generation-log-assets/") ? asset.url : "") || asset.serverUrl || (asset.url?.startsWith("/api/generation-log-assets/") ? asset.url : "");
+    const serverFallbackEnabled = asset.type === "video" ? settings.videoServerFallback : settings.imageServerFallback;
+    const directUrl = asset.url && !asset.url.startsWith("/api/generation-log-assets/") ? asset.url : "";
+    const serverUrl = serverFallbackEnabled ? asset.serverUrl || (asset.url?.startsWith("/api/generation-log-assets/") ? asset.url : "") : "";
+    return browserReadableMediaUrl(asset.remoteUrl || directUrl || serverUrl || asset.serverUrl || (asset.url?.startsWith("/api/generation-log-assets/") ? asset.url : ""));
 }
 
 function InfoBox({ label, value }: { label: string; value: string }) {

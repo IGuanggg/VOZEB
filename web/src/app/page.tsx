@@ -91,6 +91,9 @@ const socialIconByKey: Record<SiteSocialKey, ReactNode> = {
     instagram: <span className="text-sm font-black leading-none">IG</span>,
 };
 
+const publicPrefetchRoutes = ["/login", "/register", "/forgot-password", "/privacy", "/terms"];
+const authenticatedPrefetchRoutes = navigationTools.map((tool) => `/${tool.slug}`);
+
 function Highlighter({ action, color, children }: { action: "highlight" | "underline"; color: string; children: ReactNode }) {
     if (action === "highlight") {
         return (
@@ -148,6 +151,7 @@ export default function HomePage() {
     const [previewIndex, setPreviewIndex] = useState(0);
     const [previewOpen, setPreviewOpen] = useState(false);
     const [authOpen, setAuthOpen] = useState(false);
+    const [sessionReady, setSessionReady] = useState(false);
     const [site, setSite] = useState(defaultSite);
     const user = useUserStore((state) => state.user);
     const setUser = useUserStore((state) => state.setUser);
@@ -155,12 +159,28 @@ export default function HomePage() {
     const setTheme = useThemeStore((state) => state.setTheme);
     const friendLinks = (site.friendLinks || []).filter((link) => link.enabled && link.url);
     const previewItems = promptShowcase.filter((item) => item.coverUrl);
+    const hasVerifiedUser = sessionReady && Boolean(user);
+
+    const openProtectedEntry = (path: string) => {
+        if (hasVerifiedUser) {
+            router.push(path);
+            return;
+        }
+        setAuthOpen(true);
+    };
 
     useEffect(() => {
+        const routes = user ? [...authenticatedPrefetchRoutes, "/profile"] : publicPrefetchRoutes;
+        return prefetchRoutesAfterIdle(routes, router.prefetch);
+    }, [router, user]);
+
+    useEffect(() => {
+        let cancelled = false;
         void fetch("/api/auth/session")
             .then((response) => response.json() as Promise<SessionPayload>)
             .then((data) => {
-                if (data.user) setUser(data.user);
+                if (cancelled) return;
+                setUser(data.user || null);
                 if (data.settings?.site) {
                     const nextSite = { ...defaultSite, ...data.settings.site };
                     setSite(nextSite);
@@ -170,7 +190,15 @@ export default function HomePage() {
                     }
                 }
             })
-            .catch(() => undefined);
+            .catch(() => {
+                if (!cancelled) setUser(null);
+            })
+            .finally(() => {
+                if (!cancelled) setSessionReady(true);
+            });
+        return () => {
+            cancelled = true;
+        };
     }, [setUser]);
 
     useEffect(() => {
@@ -248,8 +276,8 @@ export default function HomePage() {
                     </nav>
                     <div className="landing-header-actions flex items-center justify-end gap-2">
                         <AnimatedThemeToggler theme={theme} onThemeChange={setTheme} className="landing-theme-toggle" aria-label={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"} title={theme === "dark" ? "切换到浅色主题" : "切换到深色主题"} />
-                        <Button className="landing-login-button" onClick={() => (user ? router.push("/canvas") : setAuthOpen(true))}>
-                            {user ? "进入工作台" : "登录"}
+                        <Button className="landing-login-button" onClick={() => openProtectedEntry("/canvas")}>
+                            {hasVerifiedUser ? "进入工作台" : "登录"}
                         </Button>
                     </div>
                 </div>
@@ -279,7 +307,7 @@ export default function HomePage() {
                         ，让创作从单次生成变成连续推演。
                     </p>
                     <div className="landing-hero-actions mt-8 flex flex-wrap items-center justify-center gap-4">
-                        <Button className="landing-hero-cta" type="primary" size="large" onClick={() => (user ? router.push(`/${primaryTool.slug}`) : setAuthOpen(true))} icon={<ArrowRight className="size-5" />} iconPlacement="end">
+                        <Button className="landing-hero-cta" type="primary" size="large" onClick={() => openProtectedEntry(`/${primaryTool.slug}`)} icon={<ArrowRight className="size-5" />} iconPlacement="end">
                             开始使用
                         </Button>
                         <Button className="landing-hero-cta landing-hero-cta-secondary" size="large" href="/prompts">
@@ -492,6 +520,52 @@ function siteShowcaseItemsToPrompts(items: SiteShowcaseItem[] = []): Prompt[] {
             createdAt: now,
             updatedAt: now,
         }));
+}
+
+function prefetchRoutesAfterIdle(routes: string[], prefetch: (href: string) => void) {
+    if (shouldSkipHomepagePrefetch()) return undefined;
+
+    let cancelled = false;
+    const timers: number[] = [];
+    const idleWindow = window as Window & {
+        requestIdleCallback?: (callback: IdleRequestCallback, options?: IdleRequestOptions) => number;
+        cancelIdleCallback?: (handle: number) => void;
+    };
+
+    const run = () => {
+        if (cancelled || document.visibilityState !== "visible") return;
+        routes.forEach((route, index) => {
+            const timer = window.setTimeout(
+                () => {
+                    if (!cancelled) prefetch(route);
+                },
+                450 + index * 650,
+            );
+            timers.push(timer);
+        });
+    };
+
+    const idleId = idleWindow.requestIdleCallback?.(run, { timeout: 2400 });
+    const fallbackTimer = idleId === undefined ? window.setTimeout(run, 1800) : undefined;
+
+    return () => {
+        cancelled = true;
+        if (idleId !== undefined) idleWindow.cancelIdleCallback?.(idleId);
+        if (fallbackTimer !== undefined) window.clearTimeout(fallbackTimer);
+        timers.forEach((timer) => window.clearTimeout(timer));
+    };
+}
+
+function shouldSkipHomepagePrefetch() {
+    const nav = navigator as Navigator & {
+        connection?: {
+            saveData?: boolean;
+            effectiveType?: string;
+        };
+    };
+    const connection = nav.connection;
+    if (connection?.saveData) return true;
+    return /(^|-)2g$/i.test(connection?.effectiveType || "");
 }
 
 function SiteLogo({ logoUrl, className }: { logoUrl: string; className: string }) {

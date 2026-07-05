@@ -19,6 +19,10 @@ export async function GET(request: Request, context: RouteContext) {
     return proxySystemRequest(request, context);
 }
 
+export async function HEAD(request: Request, context: RouteContext) {
+    return proxySystemRequest(request, context);
+}
+
 export async function POST(request: Request, context: RouteContext) {
     return proxySystemRequest(request, context);
 }
@@ -43,6 +47,8 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
     const settings = await getAuthSettings();
     const channel = settings.systemChannels.find((item) => item.id === channelId && item.enabled);
     if (!channel || !channel.baseUrl.trim() || !channel.apiKey.trim()) return NextResponse.json({ error: "默认接口未配置或已停用" }, { status: 404 });
+
+    if (isMediaProxyPath(path)) return proxySystemMediaRequest(request, channel);
 
     const target = targetUrl(channel.baseUrl, channel.apiFormat, path, new URL(request.url).search);
     const headers = new Headers();
@@ -102,6 +108,92 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
     });
 }
 
+type SystemMediaChannel = { baseUrl: string; apiFormat: ApiCallFormat; apiKey: string };
+
+async function proxySystemMediaRequest(request: Request, channel: SystemMediaChannel) {
+    if (request.method !== "GET" && request.method !== "HEAD") return NextResponse.json({ error: "Media proxy only supports GET and HEAD" }, { status: 405 });
+    const target = mediaTargetRequest(channel.baseUrl, channel.apiFormat, new URL(request.url).searchParams.get("url") || "");
+    if (!target) return NextResponse.json({ error: "Invalid media url" }, { status: 400 });
+
+    const headers = new Headers();
+    const range = request.headers.get("range");
+    if (range) headers.set("range", range);
+    if (target.includeAuth) {
+        if (channel.apiFormat === "gemini") headers.set("x-goog-api-key", channel.apiKey);
+        else headers.set("authorization", `Bearer ${channel.apiKey}`);
+    }
+
+    let upstream: Response;
+    try {
+        upstream = await fetch(target.url, {
+            method: request.method,
+            headers,
+            cache: "no-store",
+            signal: request.signal,
+        });
+    } catch (error) {
+        console.error("System media proxy request failed", error instanceof Error ? error.message : error);
+        return NextResponse.json({ error: DEFAULT_CHANNEL_CONNECT_ERROR }, { status: 502 });
+    }
+
+    return new Response(request.method === "HEAD" ? null : upstream.body, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: mediaResponseHeaders(upstream.headers),
+    });
+}
+
+function isMediaProxyPath(path: string[]) {
+    return path[0] === "_media" || ((path[0] === "v1" || path[0] === "v1beta") && path[1] === "_media");
+}
+
+function mediaTargetRequest(baseUrl: string, apiFormat: ApiCallFormat, value: string): { url: string; includeAuth: boolean } | null {
+    const mediaUrl = value.trim();
+    if (!mediaUrl) return null;
+    let apiBase: URL;
+    try {
+        apiBase = new URL(normalizeApiBaseUrl(baseUrl, apiFormat));
+    } catch {
+        return null;
+    }
+    try {
+        if (mediaUrl.startsWith("/")) return { url: new URL(mediaUrl, apiBase.origin).toString(), includeAuth: true };
+        const absolute = new URL(mediaUrl);
+        if (!["http:", "https:"].includes(absolute.protocol)) return null;
+        if (absolute.origin !== apiBase.origin && isBlockedProxyHost(absolute.hostname)) return null;
+        return { url: absolute.toString(), includeAuth: absolute.origin === apiBase.origin };
+    } catch {
+        return { url: new URL(mediaUrl, directoryBaseUrl(apiBase)).toString(), includeAuth: true };
+    }
+}
+
+function directoryBaseUrl(url: URL) {
+    const next = new URL(url.toString());
+    if (!next.pathname.endsWith("/")) next.pathname = next.pathname.replace(/\/[^/]*$/, "/");
+    next.search = "";
+    next.hash = "";
+    return next.toString();
+}
+
+function mediaResponseHeaders(headers: Headers) {
+    const nextHeaders = new Headers();
+    ["content-type", "content-length", "content-range", "accept-ranges", "etag", "last-modified", "cache-control"].forEach((key) => {
+        const value = headers.get(key);
+        if (value) nextHeaders.set(key, value);
+    });
+    return nextHeaders;
+}
+
+function isBlockedProxyHost(hostname: string) {
+    const host = hostname.toLowerCase();
+    if (!host || host === "localhost" || host.endsWith(".localhost")) return true;
+    if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80")) return true;
+    const parts = host.split(".").map((part) => Number(part));
+    if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+    const [a, b] = parts;
+    return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || a === 0;
+}
+
 function classifyPointsRequest(method: string, apiFormat: ApiCallFormat, path: string[], contentType: string | null, body?: ArrayBuffer): PointsRequest | null {
     if (method.toUpperCase() !== "POST") return null;
     const cleanPath = path[0] === "v1" || path[0] === "v1beta" ? path.slice(1) : path;
@@ -114,8 +206,9 @@ function classifyPointsRequest(method: string, apiFormat: ApiCallFormat, path: s
         return { model, amount: readRequestCount(payload), usageKind: "image" };
     }
     if (routePath === "/audio/speech") return { model, amount: 1, usageKind: "audio" };
-    if (routePath === "/videos" || routePath === "/contents/generations/tasks") return { model, amount: 1, usageKind: "video" };
-    if (routePath === "/responses" || routePath === "/chat/completions") return { model, amount: 1, usageKind: "text" };
+    if (routePath === "/videos" || routePath === "/video/generations" || routePath === "/videos/generations" || routePath === "/contents/generations/tasks") return { model, amount: 1, usageKind: "video" };
+    if (routePath === "/responses") return { model, amount: 1, usageKind: hasResponsesImageGenerationTool(payload) ? "image" : "text" };
+    if (routePath === "/chat/completions") return { model, amount: 1, usageKind: "text" };
     if (apiFormat === "gemini" && routePath.includes(":streamgeneratecontent")) return { model, amount: 1, usageKind: "text" };
     if (apiFormat === "gemini" && routePath.includes(":generatecontent")) return { model, amount: 1, usageKind: hasGeminiImageResponseModality(payload) ? "image" : "text" };
 
@@ -144,6 +237,11 @@ function hasGeminiImageResponseModality(payload: Record<string, unknown>) {
     const generationConfig = payload.generationConfig && typeof payload.generationConfig === "object" && !Array.isArray(payload.generationConfig) ? (payload.generationConfig as Record<string, unknown>) : {};
     const modalityValues = [generationConfig.responseModalities, generationConfig.response_modalities, payload.responseModalities, payload.response_modalities];
     return modalityValues.some((value) => Array.isArray(value) && value.some((item) => String(item).toLowerCase() === "image"));
+}
+
+function hasResponsesImageGenerationTool(payload: Record<string, unknown>) {
+    const tools = payload.tools;
+    return Array.isArray(tools) && tools.some((tool) => Boolean(tool && typeof tool === "object" && String((tool as Record<string, unknown>).type || "").toLowerCase() === "image_generation"));
 }
 
 function readRequestBody(contentType: string | null, body?: ArrayBuffer): Record<string, unknown> {

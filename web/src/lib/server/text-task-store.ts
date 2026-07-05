@@ -27,7 +27,9 @@ export type TextTask = {
 };
 
 const TASK_TTL_MS = 60 * 60 * 1000;
-const tasks = new Map<string, TextTask>();
+const TASK_STALE_MS = 3 * 60 * 1000;
+const globalTextTaskStore = globalThis as typeof globalThis & { __vozebTextTasks?: Map<string, TextTask> };
+const tasks = (globalTextTaskStore.__vozebTextTasks ??= new Map<string, TextTask>());
 
 export function createTextTask(input: Omit<TextTask, "id" | "status" | "createdAt" | "updatedAt">) {
     cleanupTextTasks();
@@ -45,6 +47,7 @@ export function createTextTask(input: Omit<TextTask, "id" | "status" | "createdA
 
 export function getTextTask(id: string) {
     cleanupTextTasks();
+    markStaleTextTasks();
     return tasks.get(id) || null;
 }
 
@@ -60,5 +63,21 @@ function cleanupTextTasks() {
     const expiresBefore = Date.now() - TASK_TTL_MS;
     for (const [id, task] of tasks) {
         if (task.updatedAt < expiresBefore) tasks.delete(id);
+    }
+}
+
+function markStaleTextTasks() {
+    const expiresBefore = Date.now() - TASK_STALE_MS;
+    for (const [id, task] of tasks) {
+        if ((task.status === "pending" || task.status === "running") && task.updatedAt < expiresBefore) {
+            tasks.set(id, {
+                ...task,
+                status: "error",
+                error: "生成任务已中断，请重新生成。",
+                messages: [],
+                config: { ...task.config, apiKey: "" },
+                updatedAt: Date.now(),
+            });
+        }
     }
 }

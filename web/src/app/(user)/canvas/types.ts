@@ -60,8 +60,9 @@ export type CanvasNodeMetadata = {
     durationMs?: number;
     videoTask?: {
         id: string;
-        provider: "openai" | "seedance";
+        provider: "openai" | "seedance" | "generation";
         model: string;
+        pollPath?: string;
     };
     imageTask?: {
         id: string;

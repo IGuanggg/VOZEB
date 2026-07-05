@@ -11,6 +11,7 @@ import { ImageSettingsPanel } from "@/components/image-settings-panel";
 import { ModelPicker } from "@/components/model-picker";
 import { requestCreditCost } from "@/constant/credits";
 import type { InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
+import { browserReadableMediaUrl } from "@/lib/browser-media-url";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
 import { modelOptionLabel, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
@@ -1213,7 +1214,7 @@ async function hydrateGeneratedImageUrl(storageKey?: string, fallback = "", remo
     const remoteUrl = isRemoteImageUrl(remoteFallback) ? remoteFallback : isRemoteImageUrl(fallback) ? fallback : "";
     const serverUrl = isServerImageUrl(serverFallback) ? serverFallback : isServerImageUrl(fallback) ? fallback : "";
     const fallbackUrl = localFallback || remoteUrl || serverUrl;
-    if (!storageKey) return fallbackUrl || fallback;
+    if (!storageKey) return browserReadableMediaUrl(fallbackUrl || fallback);
     return resolveStoredImageDataUrl(storageKey, fallbackUrl);
 }
 
@@ -1240,8 +1241,9 @@ async function normalizeGeneratedImage(url: string, remoteFallback = "", serverF
         }
     }
     const fallbackUrl = remoteUrl || serverUrl || url;
-    const meta = await readImageMeta(fallbackUrl);
-    return { url: fallbackUrl, remoteUrl: remoteUrl || undefined, serverUrl: serverUrl || undefined, width: meta.width, height: meta.height, bytes: 0, mimeType: meta.mimeType, storageKey: undefined };
+    const safeUrl = browserReadableMediaUrl(fallbackUrl);
+    const meta = await readImageMeta(safeUrl);
+    return { url: safeUrl, remoteUrl: remoteUrl || undefined, serverUrl: serverUrl || undefined, width: meta.width, height: meta.height, bytes: 0, mimeType: meta.mimeType, storageKey: undefined };
 }
 
 function isStableImageUrl(value?: string) {

@@ -13,6 +13,7 @@ import { ModelPicker } from "@/components/model-picker";
 import { requestCreditCost } from "@/constant/credits";
 import { VideoSettingsPanel, normalizeVideoResolutionValue, normalizeVideoSizeValue, videoSizeLabel } from "@/components/video-settings-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { browserReadableMediaUrl } from "@/lib/browser-media-url";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { APP_STORAGE_NAME, LEGACY_APP_STORAGE_NAME } from "@/lib/storage-keys";
 import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceRatio, seedanceReferenceLabel, seedanceVideoReferenceError, seedanceVideoReferenceHint, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
@@ -307,8 +308,60 @@ export default function VideoPage() {
         return { text, config: buildVideoConfig(effectiveConfig, model), references: [...references], videoReferences: [...videoReferences], audioReferences: [...audioReferences] };
     };
 
-    const retryResult = () => {
-        void generate();
+    const retryResult = async () => {
+        const currentLog = previewLog ? getLatestLog(previewLog.id) || previewLog : null;
+        if (!currentLog) {
+            await generate();
+            return;
+        }
+        if (currentVideoTaskCount() >= videoConcurrencyLimitRef.current) {
+            message.warning("当前用户视频生成已达到并发上限，请稍后再试");
+            return;
+        }
+
+        const retryConfig = buildVideoConfig({ ...effectiveConfig, ...currentLog.config }, currentLog.config.videoModel || currentLog.model || model);
+        const retryStartedAt = Date.now();
+        const pendingLog: GenerationLog = {
+            ...currentLog,
+            createdAt: retryStartedAt,
+            time: new Date(retryStartedAt).toLocaleString("zh-CN", { hour12: false }),
+            config: normalizeLogConfig({ ...currentLog, config: retryConfig }),
+            size: retryConfig.size,
+            resolution: normalizeResolution(retryConfig.vquality),
+            seconds: retryConfig.videoSeconds,
+            status: "生成中",
+            task: undefined,
+            video: undefined,
+            error: undefined,
+            durationMs: 0,
+            resultDeleted: false,
+        };
+
+        beginStartingVideoTask();
+        deletedResultLogIdsRef.current.delete(currentLog.id);
+        removeQueuedVideoLog(currentLog.id);
+        activeLogIdRef.current = currentLog.id;
+        setPreviewLog(pendingLog);
+        setResults([{ id: currentLog.id, status: "pending" }]);
+        setSelectedResultIds([]);
+
+        try {
+            const task = await createVideoGenerationTask(retryConfig, currentLog.prompt, currentLog.references || [], currentLog.videoReferences || [], currentLog.audioReferences || []);
+            const nextLog = { ...pendingLog, task };
+            await saveLog(nextLog, { refresh: false });
+            finishStartingVideoTask();
+            scheduleVideoLog(nextLog, retryConfig);
+        } catch (error) {
+            finishStartingVideoTask();
+            const errorMessage = error instanceof Error ? error.message : "生成失败";
+            const failedLog: GenerationLog = { ...pendingLog, status: "失败", task: undefined, error: errorMessage, durationMs: Date.now() - retryStartedAt };
+            setPreviewLog(failedLog);
+            setResults([{ id: currentLog.id, status: "failed", error: errorMessage }]);
+            await saveLog(failedLog);
+            void recordVideoGenerationLog(failedLog);
+            message.error(errorMessage);
+            startQueuedVideoLogs();
+        }
     };
 
     const downloadVideo = (video: GeneratedVideo) => {
@@ -733,12 +786,13 @@ export default function VideoPage() {
                             </div>
                         </div>
                         {results.length ? (
-                            <div className="grid max-w-[560px] gap-4">
+                            <div className={results.length === 1 ? "grid max-w-[360px] gap-4" : "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3"}>
                                 {results.map((result) =>
                                     result.status === "success" && result.video ? (
                                         <ResultVideoCard
                                             key={result.id}
                                             video={result.video}
+                                            large={results.length === 1}
                                             selected={selectedResultIds.includes(result.id)}
                                             onSelectedChange={(checked) => toggleResultSelected(result.id, checked)}
                                             onDownload={downloadVideo}
@@ -817,12 +871,14 @@ function GenerationSettings({ config, model, updateConfig, openConfigDialog }: {
 
 function ResultVideoCard({
     video,
+    large,
     selected,
     onSelectedChange,
     onDownload,
     onSaveAsset,
 }: {
     video: GeneratedVideo;
+    large?: boolean;
     selected?: boolean;
     onSelectedChange?: (checked: boolean) => void;
     onDownload: (video: GeneratedVideo) => void;
@@ -831,7 +887,9 @@ function ResultVideoCard({
     return (
         <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
             <ResultSelectCheckbox selected={selected} onSelectedChange={onSelectedChange} />
-            <video src={video.url} controls className="aspect-video w-full bg-black object-contain" />
+            <div className={`${large ? "h-[240px]" : "h-[220px]"} flex w-full items-center justify-center bg-black`}>
+                <video src={video.url} controls className="h-full w-full object-contain" />
+            </div>
             <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-t border-stone-200 px-3 py-2.5 dark:border-stone-800">
                 <div className="flex min-w-0 flex-wrap gap-x-2 gap-y-1 text-xs text-stone-500 dark:text-stone-400">
                     <span>
@@ -1109,17 +1167,17 @@ async function recordVideoGenerationLog(log: GenerationLog) {
 
 async function normalizeLog(log: Partial<GenerationLog>): Promise<GenerationLog> {
     const videoFallback = generatedVideoFallback(log.video);
-    const video = log.video?.storageKey ? { ...log.video, url: await resolveMediaUrl(log.video.storageKey, videoFallback) } : log.video ? { ...log.video, url: videoFallback || log.video.url || "" } : undefined;
+    const video = log.video?.storageKey ? { ...log.video, url: await resolveMediaUrl(log.video.storageKey, videoFallback) } : log.video ? { ...log.video, url: browserReadableMediaUrl(videoFallback || log.video.url || "") } : undefined;
     const videoReferences = await Promise.all(
         (log.videoReferences || []).map(async (item) => ({
             ...item,
-            url: item.storageKey ? await resolveMediaUrl(item.storageKey, item.url) : item.url,
+            url: item.storageKey ? await resolveMediaUrl(item.storageKey, item.url) : browserReadableMediaUrl(item.url),
         })),
     );
     const audioReferences = await Promise.all(
         (log.audioReferences || []).map(async (item) => ({
             ...item,
-            url: item.storageKey ? await resolveMediaUrl(item.storageKey, item.url) : item.url,
+            url: item.storageKey ? await resolveMediaUrl(item.storageKey, item.url) : browserReadableMediaUrl(item.url),
         })),
     );
     const references = await Promise.all(

@@ -4,6 +4,19 @@
 
 暂无。
 
+## v0.9.4 - 2026-07-06
+
+- [修复] 兼容部分 OpenAI 生图上游先返回 `task_id`、再通过 `/images/generations/:task_id` 查询结果的异步任务协议，避免点击生成后一直转圈或拿不到结果。
+- [修复] 生图和图生图结果解析扩展到 `data`、`result`、`results`、`content`、`output`、`images` 等常见返回结构，并兼容 `url`、`image_url`、`output_url`、`download_url`、`b64_json`、`base64` 等字段。
+- [修复] 图生图接口遇到不支持 multipart 文件上传的上游时，会自动回退为 JSON `image/images` 参数提交，兼容只接收图片 URL 或 base64 数组的接口。
+- [修复] 画布反推提示词和文本任务改为共享服务端任务存储，刷新页面或 Next 路由模块重载后仍能查询原任务状态；不支持 `/responses` 的接口会快速兜底到 `/chat/completions`，失败时不再长时间无响应。
+- [修复] 视频生成在 `/videos` 不可用时自动回退到 `/video/generations`、`/videos/generations` 异步任务协议，并兼容 `video_url`、`output_url`、`download_url`、`url` 等结果字段。
+- [修复] 系统默认渠道内部媒体代理 `_media` 支持当前渠道相对地址、同源地址和公开 HTTP/HTTPS 媒体地址兜底；同源回源会携带渠道鉴权，不同源公开媒体不会携带系统 API Key，避免部分接口返回 CDN 图片/视频地址后生成结果无法加载。
+- [优化] 系统媒体代理补充 `HEAD`、`Range`、`Content-Range`、`Accept-Ranges`、`Content-Length`、`ETag`、`Last-Modified` 透传，提升服务器部署后视频预览和分段播放稳定性。
+- [检查] 补充接口兼容验证，覆盖图片 `b64_json`、URL 重试、`/responses` 生图、异步任务轮询、系统渠道外部媒体、画布反推 `/responses` 与 `/chat/completions` 兜底、原版 `/videos` 和兼容 `/video/generations` 视频流程。
+- [优化] 视频工作台失败重试复用当前记录，右侧结果区域尺寸与生图工作台保持接近，单个视频结果不再过大。
+- [检查] 已验证格式检查、类型检查和低内存构建路径，继续支持 `NEXT_BUILD_CPUS=1 NODE_OPTIONS=--max-old-space-size=1024 pnpm run build`。
+
 ## v0.9.3 - 2026-07-05
 
 - [修复] 修复部分 OpenAI 兼容生图接口返回 `/api/...` 相对图片地址时，前端误访问本站 `:3000/api/...` 导致 404、生成结果无法显示的问题；系统默认接口代理会透传真实上游地址，图片任务会按接口源域名补全远程结果地址。

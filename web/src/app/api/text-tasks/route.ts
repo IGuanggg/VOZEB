@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 configureServerProxyDispatcher();
 
 const TASK_HEARTBEAT_MS = 30 * 1000;
-const MODEL_REQUEST_TIMEOUT_MS = 20 * 60 * 1000;
+const MODEL_REQUEST_TIMEOUT_MS = 2 * 60 * 1000;
 
 type CreateTextTaskBody = {
     config?: TextTaskConfig;

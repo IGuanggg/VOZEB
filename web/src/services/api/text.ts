@@ -19,7 +19,7 @@ type TextTaskPayload = {
 };
 
 const TEXT_TASK_POLL_INTERVAL_MS = 1500;
-const TEXT_TASK_TIMEOUT_MS = 30 * 60 * 1000;
+const TEXT_TASK_TIMEOUT_MS = 3 * 60 * 1000;
 
 export async function createTextGenerationTask(config: AiConfig, messages: AiTextMessage[], options?: RequestOptions): Promise<TextGenerationTask> {
     const requestConfig = resolveModelRequestConfig(config, config.model || config.textModel);

@@ -3,6 +3,7 @@
 import localforage from "localforage";
 import { nanoid } from "nanoid";
 
+import { browserReadableMediaUrl } from "@/lib/browser-media-url";
 import { APP_STORAGE_NAME, LEGACY_APP_STORAGE_NAME } from "@/lib/storage-keys";
 
 export type UploadedFile = { url: string; storageKey: string; bytes: number; mimeType: string; width?: number; height?: number; durationMs?: number; remoteUrl?: string; serverUrl?: string };
@@ -12,7 +13,7 @@ const legacyStore = localforage.createInstance({ name: LEGACY_APP_STORAGE_NAME, 
 const objectUrls = new Map<string, string>();
 
 export async function uploadMediaFile(input: string | Blob, prefix = "file"): Promise<UploadedFile> {
-    const blob = typeof input === "string" ? await (await fetch(input)).blob() : input;
+    const blob = typeof input === "string" ? await fetchMediaBlob(input) : input;
     const storageKey = `${prefix}:${nanoid()}`;
     await store.setItem(storageKey, blob);
     const url = URL.createObjectURL(blob);
@@ -22,7 +23,7 @@ export async function uploadMediaFile(input: string | Blob, prefix = "file"): Pr
 }
 
 export async function resolveMediaUrl(storageKey?: string, fallback = "") {
-    if (!storageKey) return fallback;
+    if (!storageKey) return browserReadableMediaUrl(fallback);
     const cached = objectUrls.get(storageKey);
     if (cached) return cached;
     let blob = await store.getItem<Blob>(storageKey);
@@ -30,7 +31,7 @@ export async function resolveMediaUrl(storageKey?: string, fallback = "") {
         blob = await legacyStore.getItem<Blob>(storageKey);
         if (blob) await store.setItem(storageKey, blob);
     }
-    if (!blob) return fallback;
+    if (!blob) return browserReadableMediaUrl(fallback);
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     return url;
@@ -97,4 +98,10 @@ function readAudioMeta(url: string) {
         audio.onerror = done;
         audio.src = url;
     });
+}
+
+async function fetchMediaBlob(url: string) {
+    const response = await fetch(browserReadableMediaUrl(url), { cache: "no-store" });
+    if (!response.ok) throw new Error("读取媒体失败");
+    return response.blob();
 }

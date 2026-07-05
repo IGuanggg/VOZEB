@@ -3,6 +3,7 @@
 import localforage from "localforage";
 
 import { nanoid } from "nanoid";
+import { browserReadableMediaUrl } from "@/lib/browser-media-url";
 import { readImageMeta } from "@/lib/image-utils";
 import { APP_STORAGE_NAME, LEGACY_APP_STORAGE_NAME } from "@/lib/storage-keys";
 
@@ -22,7 +23,7 @@ const legacyStore = localforage.createInstance({ name: LEGACY_APP_STORAGE_NAME, 
 const objectUrls = new Map<string, string>();
 
 export async function uploadImage(input: string | Blob): Promise<UploadedImage> {
-    const blob = typeof input === "string" ? await (await fetch(input)).blob() : input;
+    const blob = typeof input === "string" ? await fetchImageBlob(input) : input;
     const storageKey = `image:${nanoid()}`;
     await store.setItem(storageKey, blob);
     const url = URL.createObjectURL(blob);
@@ -32,7 +33,7 @@ export async function uploadImage(input: string | Blob): Promise<UploadedImage> 
 }
 
 export async function resolveImageUrl(storageKey?: string, fallback = "") {
-    if (!storageKey) return fallback;
+    if (!storageKey) return browserReadableMediaUrl(fallback);
     const cached = objectUrls.get(storageKey);
     if (cached) return cached;
     let blob = await store.getItem<Blob>(storageKey);
@@ -40,16 +41,15 @@ export async function resolveImageUrl(storageKey?: string, fallback = "") {
         blob = await legacyStore.getItem<Blob>(storageKey);
         if (blob) await store.setItem(storageKey, blob);
     }
-    if (!blob) return fallback;
+    if (!blob) return browserReadableMediaUrl(fallback);
     const url = URL.createObjectURL(blob);
     objectUrls.set(storageKey, url);
     return url;
 }
 
 export async function resolveStoredImageDataUrl(storageKey?: string, fallback = "") {
-    if (!storageKey) return fallback;
-    const blob = await getImageBlob(storageKey);
-    if (!blob) return fallback;
+    const blob = storageKey ? await getImageBlob(storageKey) : null;
+    if (!blob) return fallback ? safeFallbackImageDataUrl(fallback) : fallback;
     return blobToDataUrl(blob);
 }
 
@@ -69,9 +69,15 @@ export async function setImageBlob(storageKey: string, blob: Blob) {
 }
 
 export async function imageToDataUrl(image: { url?: string; dataUrl?: string; storageKey?: string }) {
-    const url = image.dataUrl || (await resolveImageUrl(image.storageKey, image.url || ""));
+    const stored = image.storageKey ? await resolveStoredImageDataUrl(image.storageKey, "") : "";
+    if (stored) return stored;
+    const url = image.dataUrl || image.url || "";
     if (!url || url.startsWith("data:")) return url;
-    return blobToDataUrl(await (await fetch(url)).blob());
+    try {
+        return await fetchImageAsDataUrl(url);
+    } catch {
+        return url;
+    }
 }
 
 export async function deleteStoredImages(keys: Iterable<string>) {
@@ -109,4 +115,23 @@ function blobToDataUrl(blob: Blob) {
         reader.onerror = () => reject(new Error("读取图片失败"));
         reader.readAsDataURL(blob);
     });
+}
+
+async function fetchImageBlob(url: string) {
+    const response = await fetch(browserReadableMediaUrl(url), { cache: "no-store" });
+    if (!response.ok) throw new Error("读取图片失败");
+    return response.blob();
+}
+
+async function fetchImageAsDataUrl(url: string) {
+    if (!url || url.startsWith("data:")) return url;
+    return blobToDataUrl(await fetchImageBlob(url));
+}
+
+async function safeFallbackImageDataUrl(url: string) {
+    try {
+        return await fetchImageAsDataUrl(url);
+    } catch {
+        return browserReadableMediaUrl(url);
+    }
 }

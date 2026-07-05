@@ -44,7 +44,9 @@ export type ImageTask = {
 };
 
 const TASK_TTL_MS = 60 * 60 * 1000;
-const tasks = new Map<string, ImageTask>();
+const TASK_STALE_MS = 3 * 60 * 1000;
+const globalImageTaskStore = globalThis as typeof globalThis & { __vozebImageTasks?: Map<string, ImageTask> };
+const tasks = (globalImageTaskStore.__vozebImageTasks ??= new Map<string, ImageTask>());
 
 export function createImageTask(input: Omit<ImageTask, "id" | "status" | "createdAt" | "updatedAt">) {
     cleanupImageTasks();
@@ -62,11 +64,13 @@ export function createImageTask(input: Omit<ImageTask, "id" | "status" | "create
 
 export function getImageTask(id: string) {
     cleanupImageTasks();
+    markStaleImageTasks();
     return tasks.get(id) || null;
 }
 
 export function countActiveImageTasksForUser(userId: string) {
     cleanupImageTasks();
+    markStaleImageTasks();
     return Array.from(tasks.values()).filter((task) => task.userId === userId && (task.status === "pending" || task.status === "running")).length;
 }
 
@@ -82,5 +86,19 @@ function cleanupImageTasks() {
     const expiresBefore = Date.now() - TASK_TTL_MS;
     for (const [id, task] of tasks) {
         if (task.updatedAt < expiresBefore) tasks.delete(id);
+    }
+}
+
+function markStaleImageTasks() {
+    const expiresBefore = Date.now() - TASK_STALE_MS;
+    for (const [id, task] of tasks) {
+        if ((task.status === "pending" || task.status === "running") && task.updatedAt < expiresBefore) {
+            tasks.set(id, {
+                ...task,
+                status: "error",
+                error: "生成任务已中断，请重新生成。",
+                updatedAt: Date.now(),
+            });
+        }
     }
 }

@@ -2,8 +2,16 @@ export const DEFAULT_CHANNEL_CONNECT_ERROR = "默认渠道连接失败：服务�
 
 export function toSafeGenerationErrorMessage(error: unknown, fallback: string) {
     const message = error instanceof Error ? error.message : "";
+    if (isTimeoutError(error, message)) return "生成接口响应超时，请稍后重试或检查模型服务。";
     if (isFetchNetworkError(error, message)) return DEFAULT_CHANNEL_CONNECT_ERROR;
     return message || fallback;
+}
+
+function isTimeoutError(error: unknown, message: string) {
+    const lower = message.toLowerCase();
+    if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("aborted due to timeout")) return true;
+    if (!(error instanceof Error)) return false;
+    return error.name === "TimeoutError";
 }
 
 function isFetchNetworkError(error: unknown, message: string) {

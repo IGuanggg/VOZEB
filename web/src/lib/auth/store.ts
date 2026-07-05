@@ -954,7 +954,7 @@ function normalizeSystemChannel(channel: Partial<SystemModelChannel>): SystemMod
         name: channel.name?.trim() || "默认渠道",
         baseUrl: channel.baseUrl?.trim() || "",
         apiKey: channel.apiKey || "",
-        apiFormat: "openai",
+        apiFormat: channel.apiFormat === "gemini" ? "gemini" : "openai",
         models: Array.from(new Set((channel.models || []).map((model) => model.trim()).filter(Boolean))),
         enabled: channel.enabled !== false,
     };

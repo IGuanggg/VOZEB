@@ -1,6 +1,7 @@
 import axios from "axios";
 
 import { dataUrlToFile } from "@/lib/image-utils";
+import { browserReadableMediaUrl } from "@/lib/browser-media-url";
 import { resolveGeneratedMediaUrl } from "@/lib/media-url";
 import { getMediaBlob, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { imageToDataUrl } from "@/services/image-storage";
@@ -22,8 +23,14 @@ type ApiEnvelope<T> = T | { code?: number; data?: T | null; msg?: string };
 type RequestOptions = { signal?: AbortSignal };
 
 export type VideoGenerationResult = { blob?: Blob; url?: string; remoteUrl?: string; mimeType?: string };
-export type VideoGenerationTask = { id: string; provider: "openai" | "seedance"; model: string };
+export type VideoGenerationTask = { id: string; provider: "openai" | "seedance" | "generation"; model: string; pollPath?: string };
 export type VideoGenerationTaskState = { status: "pending" } | { status: "completed"; result: VideoGenerationResult } | { status: "failed"; error: string };
+
+const VIDEO_CREATE_PATHS = ["/video/generations", "/videos/generations"];
+const VIDEO_URL_KEYS = ["video_url", "videoUrl", "output_url", "outputUrl", "download_url", "downloadUrl", "file_url", "fileUrl", "asset_url", "assetUrl", "result_url", "resultUrl", "url", "uri"];
+const VIDEO_CONTAINER_KEYS = ["data", "result", "results", "content", "output", "video", "videos", "media", "file", "files", "artifact", "artifacts", "items", "task", "job"];
+const TASK_ID_KEYS = ["task_id", "taskId", "id", "job_id", "jobId", "request_id", "requestId", "generation_id", "generationId"];
+const TASK_STATUS_KEYS = ["status", "state", "task_status", "taskStatus"];
 
 function aiApiUrl(config: AiConfig, path: string) {
     return buildApiUrl(config.baseUrl, path);
@@ -77,7 +84,9 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
 export async function pollVideoGenerationTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
     const requestConfig = resolveModelRequestConfig(config, task.model);
     assertVideoConfig(requestConfig, requestConfig.model);
-    return task.provider === "seedance" ? pollSeedanceTask(requestConfig, task, options) : pollOpenAIVideoTask(requestConfig, task, options);
+    if (task.provider === "seedance") return pollSeedanceTask(requestConfig, task, options);
+    if (task.provider === "generation") return pollCompatibleVideoTask(requestConfig, task, options);
+    return pollOpenAIVideoTask(requestConfig, task, options);
 }
 
 export async function storeGeneratedVideo(result: VideoGenerationResult): Promise<UploadedFile> {
@@ -104,8 +113,10 @@ async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: st
         await refreshUserPointsIfSystem(config.apiSource);
         return { id: created.id, provider: "openai", model };
     } catch (error) {
+        const errorMessage = readAxiosError(error, "视频任务创建失败");
+        if (shouldFallbackToCompatibleVideo(error, errorMessage)) return createCompatibleVideoTask(config, model, prompt, references, options);
         await refreshUserPointsIfSystem(config.apiSource);
-        throw new Error(readAxiosError(error, "视频任务创建失败"));
+        throw new Error(errorMessage);
     }
 }
 
@@ -122,6 +133,57 @@ async function pollOpenAIVideoTask(config: AiConfig, task: VideoGenerationTask, 
     } catch (error) {
         throw new Error(readAxiosError(error, "视频任务查询失败"));
     }
+}
+
+async function createCompatibleVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], options?: RequestOptions): Promise<VideoGenerationTask> {
+    const payload = await buildCompatibleVideoPayload(config, model, prompt, references);
+    let lastError = "";
+    for (const path of VIDEO_CREATE_PATHS) {
+        try {
+            const response = await axios.post<ApiEnvelope<Record<string, unknown>>>(aiApiUrl(config, path), payload, { headers: aiHeaders(config, "application/json"), signal: options?.signal });
+            syncUserPointsFromHeaders(response.headers, config.apiSource);
+            const created = unwrapEnvelope(response.data, "视频接口没有返回任务") as Record<string, unknown>;
+            const id = readTaskId(created);
+            if (!id) throw new Error("视频接口没有返回任务 ID");
+            await refreshUserPointsIfSystem(config.apiSource);
+            return { id, provider: "generation", model, pollPath: path };
+        } catch (error) {
+            const message = readAxiosError(error, "视频任务创建失败");
+            lastError = message;
+            if (!shouldFallbackToCompatibleVideo(error, message)) {
+                await refreshUserPointsIfSystem(config.apiSource);
+                throw new Error(message);
+            }
+        }
+    }
+    await refreshUserPointsIfSystem(config.apiSource);
+    throw new Error(lastError || "视频任务创建失败");
+}
+
+async function pollCompatibleVideoTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
+    const paths = Array.from(new Set([task.pollPath || VIDEO_CREATE_PATHS[0], ...VIDEO_CREATE_PATHS]));
+    let lastError = "";
+    for (const path of paths) {
+        const requestUrl = aiApiUrl(config, `${path}/${encodeURIComponent(task.id)}`);
+        try {
+            const response = await axios.get<ApiEnvelope<Record<string, unknown>>>(requestUrl, { headers: aiHeaders(config), signal: options?.signal });
+            const state = unwrapEnvelope(response.data, "视频接口没有返回任务") as Record<string, unknown>;
+            const status = readTaskStatus(state);
+            const videoUrl = findMediaUrl(state);
+            if (videoUrl && (!status || isCompletedStatus(status) || !isPendingStatus(status))) {
+                const resolvedUrl = resolveVideoMediaUrl(config, videoUrl, readHeader(response.headers, "x-vozeb-upstream-url") || requestUrl);
+                return { status: "completed", result: await videoResultFromUrl(resolvedUrl, options) };
+            }
+            if (isCompletedStatus(status)) return { status: "failed", error: "视频任务完成但没有返回视频地址" };
+            if (isFailedStatus(status)) return { status: "failed", error: readTaskError(state) || "视频生成失败" };
+            return { status: "pending" };
+        } catch (error) {
+            const message = readAxiosError(error, "视频任务查询失败");
+            lastError = message;
+            if (!shouldFallbackToCompatibleVideo(error, message)) throw new Error(message);
+        }
+    }
+    throw new Error(lastError || "视频任务查询失败");
 }
 
 async function createSeedanceTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[], options?: RequestOptions): Promise<VideoGenerationTask> {
@@ -161,7 +223,7 @@ async function pollSeedanceTask(config: AiConfig, task: VideoGenerationTask, opt
         const response = await axios.get<ApiEnvelope<SeedanceTask>>(requestUrl, { headers: aiHeaders(config), signal: options?.signal });
         const state = unwrapSeedanceTask(response.data);
         if (state.status === "succeeded") {
-            const url = state.content?.video_url ? resolveGeneratedMediaUrl(state.content.video_url, readHeader(response.headers, "x-vozeb-upstream-url") || requestUrl) : "";
+            const url = state.content?.video_url ? resolveVideoMediaUrl(config, state.content.video_url, readHeader(response.headers, "x-vozeb-upstream-url") || requestUrl) : "";
             if (!url) return { status: "failed", error: "Seedance 任务成功但没有返回视频 URL" };
             return { status: "completed", result: await videoResultFromUrl(url, options) };
         }
@@ -196,6 +258,142 @@ function assertSeedanceAudioReferences(audioReferences: ReferenceAudio[]) {
 
 function seedanceApiUrl(config: AiConfig, taskId?: string) {
     return buildApiUrl(config.baseUrl, `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`);
+}
+
+async function buildCompatibleVideoPayload(config: AiConfig, model: string, prompt: string, references: ReferenceImage[]) {
+    const images = await Promise.all(references.slice(0, 9).map((image) => imageToDataUrl(image)));
+    const duration = normalizeCompatibleVideoDuration(config.videoSeconds);
+    const ratio = normalizeCompatibleVideoRatio(config.size);
+    const quality = normalizeCompatibleVideoQuality(config.vquality);
+    return {
+        model: modelOptionName(model),
+        prompt,
+        seconds: duration,
+        duration,
+        ratio,
+        aspect_ratio: ratio,
+        resolution: normalizeVideoResolution(config.vquality),
+        quality,
+        async: true,
+        generate_audio: boolConfig(config.videoGenerateAudio, true),
+        watermark: boolConfig(config.videoWatermark, false),
+        ...(images.length === 1 ? { image: images[0] } : {}),
+        ...(images.length ? { images } : {}),
+        ...(images.length ? { ref_assets: images } : {}),
+    };
+}
+
+function normalizeCompatibleVideoDuration(value: string) {
+    const seconds = Math.floor(Number(value) || 5);
+    if (seconds <= 5) return 5;
+    if (seconds <= 10) return 10;
+    return 15;
+}
+
+function normalizeCompatibleVideoRatio(value: string) {
+    if (!value || value === "auto") return "16:9";
+    const normalized = normalizeSeedanceRatio(value);
+    return normalized === "adaptive" ? "16:9" : normalized;
+}
+
+function normalizeCompatibleVideoQuality(value: string) {
+    const resolution = normalizeVideoResolution(value);
+    return resolution === "1080p" ? "hd" : "standard";
+}
+
+function shouldFallbackToCompatibleVideo(error: unknown, message: string) {
+    if (axios.isCancel(error)) return false;
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    if (status === 404 || status === 405 || status === 415) return true;
+    if (status && status >= 500 && /not found|route|endpoint|unsupported|no such|cannot post|invalid url/i.test(message)) return true;
+    return /not found|route|endpoint|unsupported|no such|cannot post|invalid url|404/i.test(message);
+}
+
+function readTaskId(record: Record<string, unknown>) {
+    return findStringByKeys(record, TASK_ID_KEYS);
+}
+
+function readTaskStatus(record: Record<string, unknown>) {
+    return findStringByKeys(record, TASK_STATUS_KEYS).toLowerCase();
+}
+
+function isCompletedStatus(status: string) {
+    return ["completed", "complete", "succeeded", "success", "done", "finished"].includes(status);
+}
+
+function isPendingStatus(status: string) {
+    return !status || ["pending", "queued", "running", "processing", "in_progress", "created"].includes(status);
+}
+
+function isFailedStatus(status: string) {
+    return ["failed", "failure", "error", "cancelled", "canceled", "expired"].includes(status);
+}
+
+function readTaskError(record: Record<string, unknown>) {
+    const direct = findStringByKeys(record, ["msg", "message", "error_message", "errorMessage"]);
+    if (direct) return direct;
+    const error = record.error;
+    if (error && typeof error === "object") return stringValue((error as Record<string, unknown>).message) || stringValue((error as Record<string, unknown>).msg);
+    return typeof error === "string" ? error : "";
+}
+
+function findMediaUrl(value: unknown, depth = 0): string {
+    if (!value || depth > 5) return "";
+    if (typeof value === "string") return isLikelyVideoUrl(value) ? value : "";
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const url = findMediaUrl(item, depth + 1);
+            if (url) return url;
+        }
+        return "";
+    }
+    if (typeof value !== "object") return "";
+    const record = value as Record<string, unknown>;
+    for (const key of VIDEO_URL_KEYS) {
+        const url = stringValue(record[key]);
+        if (url) return url;
+    }
+    for (const key of VIDEO_CONTAINER_KEYS) {
+        const url = findMediaUrl(record[key], depth + 1);
+        if (url) return url;
+    }
+    return "";
+}
+
+function isLikelyVideoUrl(value: string) {
+    return /^https?:\/\//i.test(value) || value.startsWith("/") || /\.(mp4|mov|webm)(\?|#|$)/i.test(value);
+}
+
+function resolveVideoMediaUrl(config: AiConfig, value: string, baseUrl: string) {
+    if (!config.baseUrl.startsWith("/api/ai/system/")) return resolveGeneratedMediaUrl(value, baseUrl);
+    const proxyBase = config.baseUrl.trim().replace(/\/+$/, "");
+    return `${proxyBase}/_media?url=${encodeURIComponent(value)}`;
+}
+
+function stringValue(value: unknown) {
+    return typeof value === "string" ? value.trim() : "";
+}
+
+function findStringByKeys(value: unknown, keys: string[], depth = 0): string {
+    if (!value || depth > 4) return "";
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            const found = findStringByKeys(item, keys, depth + 1);
+            if (found) return found;
+        }
+        return "";
+    }
+    if (typeof value !== "object") return "";
+    const record = value as Record<string, unknown>;
+    for (const key of keys) {
+        const found = stringValue(record[key]);
+        if (found) return found;
+    }
+    for (const key of VIDEO_CONTAINER_KEYS) {
+        const found = findStringByKeys(record[key], keys, depth + 1);
+        if (found) return found;
+    }
+    return "";
 }
 
 async function buildSeedanceContent(config: AiConfig, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[]) {
@@ -241,13 +439,14 @@ async function resolveSeedanceAudioUrl(audio: ReferenceAudio) {
 }
 
 async function videoResultFromUrl(url: string, options?: RequestOptions): Promise<VideoGenerationResult> {
+    const playableUrl = browserReadableMediaUrl(url);
     try {
-        const response = await axios.get<Blob>(url, { responseType: "blob", signal: options?.signal });
+        const response = await axios.get<Blob>(playableUrl, { responseType: "blob", signal: options?.signal });
         await assertVideoBlob(response.data);
         return { blob: response.data, remoteUrl: url, mimeType: response.data.type || "video/mp4" };
     } catch (error) {
         if (axios.isCancel(error) || options?.signal?.aborted) throw error;
-        return { url, remoteUrl: url, mimeType: "video/mp4" };
+        return { url: playableUrl, remoteUrl: url, mimeType: "video/mp4" };
     }
 }
 
