@@ -317,14 +317,7 @@ export default function ImagePage() {
                     .catch((error) => {
                         if (controller.signal.aborted) return;
                         const durationMs = Math.max(log.durationMs || 0, Date.now() - pendingTask.startedAt);
-                        patchLogResult(
-                            log.id,
-                            pendingTask.resultId,
-                            { status: "failed", error: error instanceof Error ? error.message : "生成失败", image: undefined, task: undefined },
-                            snapshot,
-                            durationMs,
-                            pendingTask.index,
-                        );
+                        patchLogResult(log.id, pendingTask.resultId, { status: "failed", error: error instanceof Error ? error.message : "生成失败", image: undefined, task: undefined }, snapshot, durationMs, pendingTask.index);
                     })
                     .finally(() => taskControllersRef.current.delete(controllerKey));
             });
@@ -708,7 +701,11 @@ export default function ImagePage() {
                                     <span>开始生成</span>
                                 </span>
                             </Button>
-                            {activeImageTasks ? <div className="mt-2 text-center text-xs text-stone-500 dark:text-stone-400">当前用户运行 {activeImageTasks}/{imageConcurrencyLimit}</div> : null}
+                            {activeImageTasks ? (
+                                <div className="mt-2 text-center text-xs text-stone-500 dark:text-stone-400">
+                                    当前用户运行 {activeImageTasks}/{imageConcurrencyLimit}
+                                </div>
+                            ) : null}
                         </div>
                     </div>
 
@@ -733,17 +730,42 @@ export default function ImagePage() {
                                         ) : null}
                                     </>
                                 ) : null}
-                                {previewPendingCount ? <span className="inline-flex h-7 items-center rounded-md bg-sky-50 px-2 text-xs font-medium text-sky-700 ring-1 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-500/25">生成中 {previewPendingCount}</span> : null}
-                                {activeImageTasks ? <span className="inline-flex h-7 items-center rounded-md bg-stone-100 px-2 text-xs font-medium text-stone-700 ring-1 ring-stone-200 dark:bg-white/10 dark:text-stone-200 dark:ring-white/10">运行 {activeImageTasks}/{imageConcurrencyLimit}</span> : null}
+                                {previewPendingCount ? (
+                                    <span className="inline-flex h-7 items-center rounded-md bg-sky-50 px-2 text-xs font-medium text-sky-700 ring-1 ring-sky-200 dark:bg-sky-500/15 dark:text-sky-200 dark:ring-sky-500/25">生成中 {previewPendingCount}</span>
+                                ) : null}
+                                {activeImageTasks ? (
+                                    <span className="inline-flex h-7 items-center rounded-md bg-stone-100 px-2 text-xs font-medium text-stone-700 ring-1 ring-stone-200 dark:bg-white/10 dark:text-stone-200 dark:ring-white/10">
+                                        运行 {activeImageTasks}/{imageConcurrencyLimit}
+                                    </span>
+                                ) : null}
                             </div>
                         </div>
                         {results.length ? (
                             <div className={results.length === 1 ? "grid max-w-[360px] gap-4" : "grid w-full grid-cols-1 gap-4 sm:grid-cols-2 2xl:grid-cols-3"}>
                                 {results.map((result, index) =>
                                     result.status === "success" && result.image ? (
-                                        <ResultImageCard key={result.id} image={result.image} index={index} large={results.length === 1} missing={missingResultIds.includes(result.id) || !result.image.dataUrl} selected={selectedResultIds.includes(result.id)} onSelectedChange={(checked) => toggleResultSelected(result.id, checked)} onMissing={() => markResultMissing(result.id)} onEdit={addResultToReferences} onDownload={downloadImage} onSaveAsset={saveResultToAssets} />
+                                        <ResultImageCard
+                                            key={result.id}
+                                            image={result.image}
+                                            index={index}
+                                            large={results.length === 1}
+                                            missing={missingResultIds.includes(result.id) || !result.image.dataUrl}
+                                            selected={selectedResultIds.includes(result.id)}
+                                            onSelectedChange={(checked) => toggleResultSelected(result.id, checked)}
+                                            onMissing={() => markResultMissing(result.id)}
+                                            onEdit={addResultToReferences}
+                                            onDownload={downloadImage}
+                                            onSaveAsset={saveResultToAssets}
+                                        />
                                     ) : result.status === "failed" ? (
-                                        <FailedImageCard key={result.id} error={result.error || "生成失败"} large={results.length === 1} selected={selectedResultIds.includes(result.id)} onSelectedChange={(checked) => toggleResultSelected(result.id, checked)} onRetry={() => retryResult(index)} />
+                                        <FailedImageCard
+                                            key={result.id}
+                                            error={result.error || "生成失败"}
+                                            large={results.length === 1}
+                                            selected={selectedResultIds.includes(result.id)}
+                                            onSelectedChange={(checked) => toggleResultSelected(result.id, checked)}
+                                            onRetry={() => retryResult(index)}
+                                        />
                                     ) : (
                                         <PendingImageCard key={result.id} large={results.length === 1} selected={selectedResultIds.includes(result.id)} onSelectedChange={(checked) => toggleResultSelected(result.id, checked)} />
                                     ),
@@ -920,15 +942,7 @@ function FailedImageCard({ error, large, selected, onSelectedChange, onRetry }: 
 
 function ResultSelectCheckbox({ selected, onSelectedChange }: { selected?: boolean; onSelectedChange?: (checked: boolean) => void }) {
     if (!onSelectedChange) return null;
-    return (
-        <Checkbox
-            aria-label="选择生成结果"
-            className="absolute left-2 top-2 z-10 rounded bg-white/90 px-1 py-0.5 shadow-sm dark:bg-black/60"
-            checked={selected}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) => onSelectedChange(event.target.checked)}
-        />
-    );
+    return <Checkbox aria-label="选择生成结果" className="absolute left-2 top-2 z-10" checked={selected} onClick={(event) => event.stopPropagation()} onChange={(event) => onSelectedChange(event.target.checked)} />;
 }
 
 function updateResultAt(results: GenerationResult[], index: number, next: Partial<GenerationResult>) {
@@ -1076,18 +1090,10 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                 </div>
                 <div className="ml-6 mt-1 min-h-[62px] rounded-md border border-stone-200/70 bg-white/65 px-2.5 py-2 shadow-sm shadow-stone-200/30 dark:border-stone-800 dark:bg-stone-950/45 dark:shadow-black/10">
                     <div className="flex min-w-0 items-center gap-1.5 overflow-hidden whitespace-nowrap">
-                        <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-blue-50 px-1.5 text-xs font-medium leading-none text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">
-                            成功 {log.successCount ?? log.imageCount}
-                        </span>
-                        {log.failCount ? (
-                            <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-rose-50 px-1.5 text-xs font-medium leading-none text-rose-700 dark:bg-rose-500/15 dark:text-rose-200">
-                                失败 {log.failCount}
-                            </span>
-                        ) : null}
+                        <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-blue-50 px-1.5 text-xs font-medium leading-none text-blue-700 dark:bg-blue-500/15 dark:text-blue-200">成功 {log.successCount ?? log.imageCount}</span>
+                        {log.failCount ? <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-rose-50 px-1.5 text-xs font-medium leading-none text-rose-700 dark:bg-rose-500/15 dark:text-rose-200">失败 {log.failCount}</span> : null}
                         <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-stone-100 px-1.5 text-xs font-medium leading-none text-stone-700 dark:bg-white/10 dark:text-stone-200">{log.imageCount} 张</span>
-                        <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-lime-50 px-1.5 text-xs font-medium leading-none text-lime-700 dark:bg-lime-500/15 dark:text-lime-200">
-                            {formatDuration(log.durationMs)}
-                        </span>
+                        <span className="inline-flex h-6 shrink-0 items-center rounded-md bg-lime-50 px-1.5 text-xs font-medium leading-none text-lime-700 dark:bg-lime-500/15 dark:text-lime-200">{formatDuration(log.durationMs)}</span>
                     </div>
                     <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2">
                         <span className="min-w-0 truncate text-xs leading-5 text-stone-500 dark:text-stone-400">{log.time}</span>
@@ -1236,8 +1242,20 @@ function ReferenceOrderButtons({ index, total, onMove }: { index: number; total:
     if (total <= 1) return null;
     return (
         <div className="absolute inset-x-1 bottom-1 flex justify-between">
-            <Button size="small" className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !text-stone-900 !shadow-sm disabled:!text-stone-400 dark:!text-stone-900" icon={<ArrowLeft className="size-3" />} disabled={index <= 0} onClick={() => onMove(-1)} />
-            <Button size="small" className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !text-stone-900 !shadow-sm disabled:!text-stone-400 dark:!text-stone-900" icon={<ArrowRight className="size-3" />} disabled={index >= total - 1} onClick={() => onMove(1)} />
+            <Button
+                size="small"
+                className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !text-stone-900 !shadow-sm disabled:!text-stone-400 dark:!text-stone-900"
+                icon={<ArrowLeft className="size-3" />}
+                disabled={index <= 0}
+                onClick={() => onMove(-1)}
+            />
+            <Button
+                size="small"
+                className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !text-stone-900 !shadow-sm disabled:!text-stone-400 dark:!text-stone-900"
+                icon={<ArrowRight className="size-3" />}
+                disabled={index >= total - 1}
+                onClick={() => onMove(1)}
+            />
         </div>
     );
 }

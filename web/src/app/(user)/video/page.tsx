@@ -678,7 +678,11 @@ export default function VideoPage() {
                                     <span>开始生成</span>
                                 </span>
                             </Button>
-                            {activeVideoCount ? <div className="mt-2 text-center text-xs text-stone-500 dark:text-stone-400">当前用户运行 {activeVideoCount}/{videoConcurrencyLimit}</div> : null}
+                            {activeVideoCount ? (
+                                <div className="mt-2 text-center text-xs text-stone-500 dark:text-stone-400">
+                                    当前用户运行 {activeVideoCount}/{videoConcurrencyLimit}
+                                </div>
+                            ) : null}
                         </div>
                     </div>
 
@@ -696,15 +700,30 @@ export default function VideoPage() {
                                         </Button>
                                     </>
                                 ) : null}
-                                {previewPendingCount ? <Tag className="m-0 px-2 py-1" color="processing">生成中 {previewPendingCount}</Tag> : null}
-                                {activeVideoCount ? <Tag className="m-0 px-2 py-1">运行 {activeVideoCount}/{videoConcurrencyLimit}</Tag> : null}
+                                {previewPendingCount ? (
+                                    <Tag className="m-0 px-2 py-1" color="processing">
+                                        生成中 {previewPendingCount}
+                                    </Tag>
+                                ) : null}
+                                {activeVideoCount ? (
+                                    <Tag className="m-0 px-2 py-1">
+                                        运行 {activeVideoCount}/{videoConcurrencyLimit}
+                                    </Tag>
+                                ) : null}
                             </div>
                         </div>
                         {results.length ? (
                             <div className="grid max-w-[560px] gap-4">
                                 {results.map((result) =>
                                     result.status === "success" && result.video ? (
-                                        <ResultVideoCard key={result.id} video={result.video} selected={selectedResultIds.includes(result.id)} onSelectedChange={(checked) => toggleResultSelected(result.id, checked)} onDownload={downloadVideo} onSaveAsset={saveResultToAssets} />
+                                        <ResultVideoCard
+                                            key={result.id}
+                                            video={result.video}
+                                            selected={selectedResultIds.includes(result.id)}
+                                            onSelectedChange={(checked) => toggleResultSelected(result.id, checked)}
+                                            onDownload={downloadVideo}
+                                            onSaveAsset={saveResultToAssets}
+                                        />
                                     ) : result.status === "failed" ? (
                                         <FailedVideoCard key={result.id} error={result.error || "生成失败"} selected={selectedResultIds.includes(result.id)} onSelectedChange={(checked) => toggleResultSelected(result.id, checked)} onRetry={retryResult} />
                                     ) : (
@@ -776,7 +795,19 @@ function GenerationSettings({ config, model, updateConfig, openConfigDialog }: {
     );
 }
 
-function ResultVideoCard({ video, selected, onSelectedChange, onDownload, onSaveAsset }: { video: GeneratedVideo; selected?: boolean; onSelectedChange?: (checked: boolean) => void; onDownload: (video: GeneratedVideo) => void; onSaveAsset: (video: GeneratedVideo) => void }) {
+function ResultVideoCard({
+    video,
+    selected,
+    onSelectedChange,
+    onDownload,
+    onSaveAsset,
+}: {
+    video: GeneratedVideo;
+    selected?: boolean;
+    onSelectedChange?: (checked: boolean) => void;
+    onDownload: (video: GeneratedVideo) => void;
+    onSaveAsset: (video: GeneratedVideo) => void;
+}) {
     return (
         <div className="relative overflow-hidden rounded-lg border border-stone-200 bg-background dark:border-stone-800">
             <ResultSelectCheckbox selected={selected} onSelectedChange={onSelectedChange} />
@@ -835,15 +866,7 @@ function FailedVideoCard({ error, selected, onSelectedChange, onRetry }: { error
 
 function ResultSelectCheckbox({ selected, onSelectedChange }: { selected?: boolean; onSelectedChange?: (checked: boolean) => void }) {
     if (!onSelectedChange) return null;
-    return (
-        <Checkbox
-            aria-label="选择生成结果"
-            className="absolute left-2 top-2 z-10 rounded bg-white/90 px-1 py-0.5 shadow-sm dark:bg-black/60"
-            checked={selected}
-            onClick={(event) => event.stopPropagation()}
-            onChange={(event) => onSelectedChange(event.target.checked)}
-        />
-    );
+    return <Checkbox aria-label="选择生成结果" className="absolute left-2 top-2 z-10" checked={selected} onClick={(event) => event.stopPropagation()} onChange={(event) => onSelectedChange(event.target.checked)} />;
 }
 
 function LogPanel({
@@ -937,43 +960,43 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                 <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-start gap-2">
                     <Checkbox className="mt-0.5" checked={selected} onClick={(event) => event.stopPropagation()} onChange={(event) => onSelectedChange(event.target.checked)} />
                     <div className="min-w-0">
-                    {editingTitle ? (
-                        <Input
-                            size="small"
-                            autoFocus
-                            value={draftTitle}
-                            onClick={(event) => event.stopPropagation()}
-                            onChange={(event) => setDraftTitle(event.target.value)}
-                            onBlur={commitTitle}
-                            onPressEnter={commitTitle}
-                            onKeyDown={(event) => {
-                                event.stopPropagation();
-                                if (event.key === "Escape") {
-                                    setDraftTitle(log.title);
-                                    setEditingTitle(false);
-                                }
-                            }}
-                        />
-                    ) : (
-                        <div className="flex min-w-0 items-center gap-1">
-                            <div className="truncate text-sm font-semibold leading-5" title={log.title}>
-                                {log.title}
-                            </div>
-                            <Button
-                                aria-label="编辑记录标题"
-                                type="text"
+                        {editingTitle ? (
+                            <Input
                                 size="small"
-                                className="!h-6 !w-6 !min-w-6 shrink-0 !p-0"
-                                icon={<PenLine className="size-3.5" />}
-                                onClick={(event) => {
+                                autoFocus
+                                value={draftTitle}
+                                onClick={(event) => event.stopPropagation()}
+                                onChange={(event) => setDraftTitle(event.target.value)}
+                                onBlur={commitTitle}
+                                onPressEnter={commitTitle}
+                                onKeyDown={(event) => {
                                     event.stopPropagation();
-                                    setDraftTitle(log.title);
-                                    setEditingTitle(true);
+                                    if (event.key === "Escape") {
+                                        setDraftTitle(log.title);
+                                        setEditingTitle(false);
+                                    }
                                 }}
                             />
-                        </div>
-                    )}
-                </div>
+                        ) : (
+                            <div className="flex min-w-0 items-center gap-1">
+                                <div className="truncate text-sm font-semibold leading-5" title={log.title}>
+                                    {log.title}
+                                </div>
+                                <Button
+                                    aria-label="编辑记录标题"
+                                    type="text"
+                                    size="small"
+                                    className="!h-6 !w-6 !min-w-6 shrink-0 !p-0"
+                                    icon={<PenLine className="size-3.5" />}
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        setDraftTitle(log.title);
+                                        setEditingTitle(true);
+                                    }}
+                                />
+                            </div>
+                        )}
+                    </div>
                 </div>
                 <div className="grid min-w-0 gap-2 pl-7">
                     <div className="flex min-w-0 flex-wrap gap-1">
@@ -982,15 +1005,15 @@ function LogCard({ log, selected, active, onSelectedChange, onClick, onRename }:
                         <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none">{log.seconds}s</Tag>
                     </div>
                     <div className="flex min-w-0 flex-wrap gap-1">
-                    <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none" color={log.status === "成功" ? "blue" : log.status === "生成中" ? "processing" : "red"}>
-                        {log.status}
-                    </Tag>
-                    <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none" color="green">
-                        {formatDuration(log.durationMs)}
-                    </Tag>
+                        <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none" color={log.status === "成功" ? "blue" : log.status === "生成中" ? "processing" : "red"}>
+                            {log.status}
+                        </Tag>
+                        <Tag className="m-0 flex h-6 items-center rounded-md px-1.5 text-xs leading-none" color="green">
+                            {formatDuration(log.durationMs)}
+                        </Tag>
+                    </div>
                 </div>
             </div>
-        </div>
         </div>
     );
 }
@@ -1145,8 +1168,20 @@ function ReferenceOrderButtons({ index, total, onMove }: { index: number; total:
     if (total <= 1) return null;
     return (
         <div className="absolute inset-x-1 bottom-1 flex justify-between">
-            <Button size="small" className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !text-stone-900 !shadow-sm disabled:!text-stone-400 dark:!text-stone-900" icon={<ArrowLeft className="size-3" />} disabled={index <= 0} onClick={() => onMove(-1)} />
-            <Button size="small" className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !text-stone-900 !shadow-sm disabled:!text-stone-400 dark:!text-stone-900" icon={<ArrowRight className="size-3" />} disabled={index >= total - 1} onClick={() => onMove(1)} />
+            <Button
+                size="small"
+                className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !text-stone-900 !shadow-sm disabled:!text-stone-400 dark:!text-stone-900"
+                icon={<ArrowLeft className="size-3" />}
+                disabled={index <= 0}
+                onClick={() => onMove(-1)}
+            />
+            <Button
+                size="small"
+                className="!h-6 !w-6 !min-w-6 !rounded-full !bg-white/85 !p-0 !text-stone-900 !shadow-sm disabled:!text-stone-400 dark:!text-stone-900"
+                icon={<ArrowRight className="size-3" />}
+                disabled={index >= total - 1}
+                onClick={() => onMove(1)}
+            />
         </div>
     );
 }

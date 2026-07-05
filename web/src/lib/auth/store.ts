@@ -17,6 +17,7 @@ type LegacyUserQuota = {
 };
 
 export type ModelPointCosts = Record<string, number>;
+export type PointUsageKind = "api" | "image" | "video" | "audio" | "text";
 
 export type SystemModelChannel = {
     id: string;
@@ -262,8 +263,33 @@ export async function listPointRecords(userId: string, limit = 50) {
     const db = await readAuthDb();
     return (db.pointRecords || [])
         .filter((record) => record.userId === userId)
+        .map(toPublicPointRecord)
         .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
         .slice(0, Math.max(1, Math.min(200, Math.floor(Number(limit) || 50))));
+}
+
+function toPublicPointRecord(record: StoredPointRecord): PublicPointRecord {
+    return { ...record, description: displayPointRecordDescription(record) };
+}
+
+function displayPointRecordDescription(record: StoredPointRecord) {
+    const description = record.description.trim();
+    const model = (record.model || "").trim();
+    if (!model) return description;
+    if (record.type === "consume" && description.startsWith("管理员接口调用：")) {
+        return buildPointRecordDescription(model, legacyPointUsageKindFromModel(model), "consume");
+    }
+    if (record.type === "admin-adjust" && description.startsWith("接口调用失败退回：")) {
+        return buildPointRecordDescription(model, legacyPointUsageKindFromModel(model), "refund");
+    }
+    return description;
+}
+
+function legacyPointUsageKindFromModel(model: string): PointUsageKind {
+    const lower = model.toLowerCase();
+    if (/(video|seedance|sora|veo|kling|wan|hailuo|runway|luma)/.test(lower)) return "video";
+    if (/(image|imagen|gpt-image|dall|flux|midjourney|sdxl|stable-diffusion)/.test(lower)) return "image";
+    return "api";
 }
 
 export async function checkInUser(userId: string) {
@@ -290,7 +316,7 @@ export async function checkInUser(userId: string) {
     });
 }
 
-export async function consumeUserPoints(userId: string, model: string, amount = 1) {
+export async function consumeUserPoints(userId: string, model: string, amount = 1, usageKind: PointUsageKind = "api") {
     return mutateAuthDb((db) => {
         const user = db.users.find((item) => item.id === userId);
         if (!user || user.status !== "active") throw new AuthInputError("账号不可用");
@@ -311,15 +337,15 @@ export async function consumeUserPoints(userId: string, model: string, amount = 
             type: "consume",
             amount: -cost,
             balanceAfter: user.pointsBalance,
-            description: `管理员接口调用：${model.trim()}`,
+            description: buildPointRecordDescription(model, usageKind, "consume"),
             model: model.trim(),
             createdAt: user.updatedAt,
         });
-        return { model: model.trim(), units, multiplier, cost, remaining: user.pointsBalance };
+        return { model: model.trim(), units, multiplier, cost, remaining: user.pointsBalance, usageKind };
     });
 }
 
-export async function refundUserPoints(userId: string, model: string, amount: number) {
+export async function refundUserPoints(userId: string, model: string, amount: number, usageKind: PointUsageKind = "api") {
     return mutateAuthDb((db) => {
         const user = db.users.find((item) => item.id === userId);
         if (!user) return null;
@@ -334,7 +360,7 @@ export async function refundUserPoints(userId: string, model: string, amount: nu
             type: "admin-adjust",
             amount: refund,
             balanceAfter: user.pointsBalance,
-            description: `接口调用失败退回：${model.trim()}`,
+            description: buildPointRecordDescription(model, usageKind, "refund"),
             model: model.trim(),
             createdAt: user.updatedAt,
         });
@@ -877,6 +903,18 @@ function resolveModelPointCost(costs: ModelPointCosts, model: string) {
     const modelName = model.trim();
     const matchedKey = Object.keys(costs || {}).find((key) => key.toLowerCase() === modelName.toLowerCase());
     return normalizePointMultiplier(costs[matchedKey || DEFAULT_MODEL_POINT_COST_KEY], 1);
+}
+
+function buildPointRecordDescription(model: string, usageKind: PointUsageKind, action: "consume" | "refund") {
+    const modelName = model.trim() || "模型";
+    const actionLabels: Record<PointUsageKind, { consume: string; refund: string }> = {
+        api: { consume: "接口调用扣除", refund: "接口调用失败退回" },
+        image: { consume: "生成图片调用扣除", refund: "生成图片调用失败退回" },
+        video: { consume: "生成视频调用扣除", refund: "生成视频调用失败退回" },
+        audio: { consume: "生成音频调用扣除", refund: "生成音频调用失败退回" },
+        text: { consume: "生成文本调用扣除", refund: "生成文本调用失败退回" },
+    };
+    return `${modelName} ${actionLabels[usageKind]?.[action] || actionLabels.api[action]}`;
 }
 
 function legacyQuotaToPoints(quota: Partial<LegacyUserQuota> | undefined, fallback: number) {

@@ -103,10 +103,7 @@ export async function listGenerationLogs(options: GenerationLogListOptions = {})
         })
         .filter((log) => {
             if (!keyword) return true;
-            return [log.displayName, log.username, log.prompt, log.model, log.title, log.summary, sourceLabel(log.source), kindLabel(log.kind)]
-                .join(" ")
-                .toLowerCase()
-                .includes(keyword);
+            return [log.displayName, log.username, log.prompt, log.model, log.title, log.summary, sourceLabel(log.source), kindLabel(log.kind)].join(" ").toLowerCase().includes(keyword);
         })
         .sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
 
@@ -288,7 +285,12 @@ function normalizeStoredLog(log: Partial<StoredGenerationLog>): StoredGeneration
         count: normalizePositiveInteger(log.count, 1),
         successCount: normalizeNonNegativeInteger(log.successCount, status === "success" ? 1 : 0),
         failCount: normalizeNonNegativeInteger(log.failCount, status === "failed" ? 1 : 0),
-        assets: Array.isArray(log.assets) ? log.assets.filter((asset) => asset?.url).slice(0, 6).map((asset) => ({ ...asset, type: asset.type === "video" ? "video" : "image" })) : [],
+        assets: Array.isArray(log.assets)
+            ? log.assets
+                  .filter((asset) => asset?.url)
+                  .slice(0, 6)
+                  .map((asset) => ({ ...asset, type: asset.type === "video" ? "video" : "image" }))
+            : [],
         taskId: normalizeOptionalText(log.taskId, undefined, 160),
         error: normalizeOptionalText(log.error, undefined, 1000),
         createdAt: normalizeTime(log.createdAt, new Date().toISOString()),

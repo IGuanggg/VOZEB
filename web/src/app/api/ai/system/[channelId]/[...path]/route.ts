@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { consumeUserPoints, getAuthSettings, isQuotaExceededError, refundUserPoints, type ApiCallFormat } from "@/lib/auth/store";
+import { consumeUserPoints, getAuthSettings, isQuotaExceededError, refundUserPoints, type ApiCallFormat, type PointUsageKind } from "@/lib/auth/store";
 import { getCurrentUser } from "@/lib/auth/session";
 import { configureServerProxyDispatcher } from "@/lib/server/proxy-dispatcher";
 
@@ -12,6 +12,7 @@ configureServerProxyDispatcher();
 type RouteContext = {
     params: Promise<{ channelId: string; path: string[] }>;
 };
+type PointsRequest = { model: string; amount: number; usageKind: PointUsageKind };
 
 export async function GET(request: Request, context: RouteContext) {
     return proxySystemRequest(request, context);
@@ -59,12 +60,12 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
     const refundConsumedPoints = async () => {
         if (!pointsResult || pointsSettled) return;
         pointsSettled = true;
-        const refundedUser = await refundUserPoints(currentUser.id, pointsResult.model, pointsResult.cost);
+        const refundedUser = await refundUserPoints(currentUser.id, pointsResult.model, pointsResult.cost, pointsResult.usageKind);
         refundedPointsRemaining = typeof refundedUser?.pointsBalance === "number" ? refundedUser.pointsBalance : null;
     };
     if (pointsRequest) {
         try {
-            pointsResult = await consumeUserPoints(currentUser.id, pointsRequest.model, pointsRequest.amount);
+            pointsResult = await consumeUserPoints(currentUser.id, pointsRequest.model, pointsRequest.amount, pointsRequest.usageKind);
         } catch (error) {
             if (isQuotaExceededError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
             throw error;
@@ -100,40 +101,48 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
     });
 }
 
-function classifyPointsRequest(method: string, apiFormat: ApiCallFormat, path: string[], contentType: string | null, body?: ArrayBuffer): { model: string; amount: number } | null {
+function classifyPointsRequest(method: string, apiFormat: ApiCallFormat, path: string[], contentType: string | null, body?: ArrayBuffer): PointsRequest | null {
     if (method.toUpperCase() !== "POST") return null;
     const cleanPath = path[0] === "v1" || path[0] === "v1beta" ? path.slice(1) : path;
     const routePath = `/${cleanPath.join("/")}`.toLowerCase();
-    const model = readRequestModel(contentType, body) || readPathModel(cleanPath);
+    const payload = readRequestBody(contentType, body);
+    const model = readRequestModel(payload) || readPathModel(cleanPath);
     if (!model) return null;
 
     if (routePath === "/images/generations" || routePath === "/images/edits") {
-        return { model, amount: readRequestCount(contentType, body) };
+        return { model, amount: readRequestCount(payload), usageKind: "image" };
     }
-    if (routePath === "/audio/speech") return { model, amount: 1 };
-    if (routePath === "/videos" || routePath === "/contents/generations/tasks") return { model, amount: 1 };
-    if (routePath === "/responses" || routePath === "/chat/completions") return { model, amount: 1 };
-    if (apiFormat === "gemini" && routePath.includes(":streamgeneratecontent")) return { model, amount: 1 };
-    if (apiFormat === "gemini" && routePath.includes(":generatecontent")) return { model, amount: 1 };
+    if (routePath === "/audio/speech") return { model, amount: 1, usageKind: "audio" };
+    if (routePath === "/videos" || routePath === "/contents/generations/tasks") return { model, amount: 1, usageKind: "video" };
+    if (routePath === "/responses" || routePath === "/chat/completions") return { model, amount: 1, usageKind: "text" };
+    if (apiFormat === "gemini" && routePath.includes(":streamgeneratecontent")) return { model, amount: 1, usageKind: "text" };
+    if (apiFormat === "gemini" && routePath.includes(":generatecontent")) return { model, amount: 1, usageKind: hasGeminiImageResponseModality(payload) ? "image" : "text" };
 
     return null;
 }
 
-function readRequestModel(contentType: string | null, body?: ArrayBuffer) {
-    const payload = readRequestBody(contentType, body);
+function readRequestModel(payload: Record<string, unknown>) {
     return typeof payload.model === "string" ? payload.model.trim() : "";
 }
 
 function readPathModel(path: string[]) {
     const modelIndex = path.findIndex((item) => item === "models");
     if (modelIndex < 0) return "";
-    return decodeURIComponent(path[modelIndex + 1] || "").split(":")[0].replace(/^models\//, "").trim();
+    return decodeURIComponent(path[modelIndex + 1] || "")
+        .split(":")[0]
+        .replace(/^models\//, "")
+        .trim();
 }
 
-function readRequestCount(contentType: string | null, body?: ArrayBuffer) {
-    const payload = readRequestBody(contentType, body);
+function readRequestCount(payload: Record<string, unknown>) {
     const count = Math.floor(Number(payload.n) || 1);
     return Math.max(1, Math.min(1000, count));
+}
+
+function hasGeminiImageResponseModality(payload: Record<string, unknown>) {
+    const generationConfig = payload.generationConfig && typeof payload.generationConfig === "object" && !Array.isArray(payload.generationConfig) ? (payload.generationConfig as Record<string, unknown>) : {};
+    const modalityValues = [generationConfig.responseModalities, generationConfig.response_modalities, payload.responseModalities, payload.response_modalities];
+    return modalityValues.some((value) => Array.isArray(value) && value.some((item) => String(item).toLowerCase() === "image"));
 }
 
 function readRequestBody(contentType: string | null, body?: ArrayBuffer): Record<string, unknown> {

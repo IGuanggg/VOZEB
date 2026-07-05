@@ -646,7 +646,7 @@ function VozebCanvasPage() {
                     resumingVideoTaskIdsRef.current.delete(node.id);
                     finishGenerationRequest(node.id, controller);
                     setRunningNodeId((current) => (current === node.id ? null : current));
-            });
+                });
         });
     }, [completeVideoTask, effectiveConfig, finishGenerationRequest, message, nodes, projectLoaded, startGenerationRequest]);
 
@@ -2071,7 +2071,14 @@ function VozebCanvasPage() {
             setDialogNodeId(childId);
             const controller = startGenerationRequest(childId, node.id, childId);
             try {
-                await startAndCompleteImageTask(childId, generationConfig, prompt, [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }], undefined, controller);
+                await startAndCompleteImageTask(
+                    childId,
+                    generationConfig,
+                    prompt,
+                    [{ id: node.id, name: `${node.title || node.id}.png`, type: node.metadata.mimeType || "image/png", dataUrl: node.metadata.content, storageKey: node.metadata.storageKey }],
+                    undefined,
+                    controller,
+                );
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : "生成失败";
@@ -2553,11 +2560,7 @@ function VozebCanvasPage() {
                 message.error(errorDetails);
                 setNodes((prev) =>
                     prev.map((node) =>
-                        node.id === nodeId || pendingChildIds.includes(node.id)
-                            ? node.id === nodeId && !markSourceStatus
-                                ? node
-                                : { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails, textTask: undefined } }
-                            : node,
+                        node.id === nodeId || pendingChildIds.includes(node.id) ? (node.id === nodeId && !markSourceStatus ? node : { ...node, metadata: { ...node.metadata, status: NODE_STATUS_ERROR, errorDetails, textTask: undefined } }) : node,
                     ),
                 );
             } finally {
@@ -2592,8 +2595,7 @@ function VozebCanvasPage() {
                 return;
             }
 
-            const retryPromptSource =
-                sourceNode.type === CanvasNodeType.Config && sourceNode.metadata?.composerContent ? sourceNode.metadata.composerContent : sourceNode.metadata?.prompt || node.metadata?.prompt || "";
+            const retryPromptSource = sourceNode.type === CanvasNodeType.Config && sourceNode.metadata?.composerContent ? sourceNode.metadata.composerContent : sourceNode.metadata?.prompt || node.metadata?.prompt || "";
             const context = hasSavedImageMetadata ? null : await hydrateNodeGenerationContext(buildNodeGenerationContext(sourceNode.id, nodesRef.current, connectionsRef.current, retryPromptSource));
             const prompt = (savedImageMetadata?.prompt || context?.prompt || "").trim();
             if (!prompt) {
@@ -2620,11 +2622,7 @@ function VozebCanvasPage() {
                     if (!context) return;
                     const task = await createTextGenerationTask(generationConfig, buildNodeResponseMessages({ ...context, prompt }), { signal: controller.signal });
                     setNodes((prev) =>
-                        prev.map((item) =>
-                            item.id === node.id
-                                ? { ...item, type: CanvasNodeType.Text, metadata: { ...item.metadata, prompt, status: NODE_STATUS_LOADING, textTask: { id: task.id, model: task.model }, errorDetails: undefined } }
-                                : item,
-                        ),
+                        prev.map((item) => (item.id === node.id ? { ...item, type: CanvasNodeType.Text, metadata: { ...item.metadata, prompt, status: NODE_STATUS_LOADING, textTask: { id: task.id, model: task.model }, errorDetails: undefined } } : item)),
                     );
                     await completeTextTask(node.id, generationConfig, task, controller, prompt);
                     return;

@@ -141,10 +141,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
             const target = event.target;
             if (!(target instanceof Node)) return;
             if (rootRef.current?.contains(target)) return;
-            if (
-                target instanceof Element &&
-                target.closest(".user-points-popover, .ant-dropdown, .ant-dropdown-menu, .ant-dropdown-menu-submenu, .ant-dropdown-menu-submenu-popup")
-            ) {
+            if (target instanceof Element && target.closest(".user-points-popover, .ant-dropdown, .ant-dropdown-menu, .ant-dropdown-menu-submenu, .ant-dropdown-menu-submenu-popup")) {
                 return;
             }
             setPointsOpen(false);
@@ -200,14 +197,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
     return (
         <div ref={rootRef} className={cn("user-status-actions inline-flex shrink-0 items-center gap-1.5 sm:gap-2", variant === "canvas" ? "canvas-user-status-actions" : "app-user-status-actions")}>
             {user ? (
-                <Popover
-                    rootClassName="user-points-popover"
-                    open={pointsOpen}
-                    onOpenChange={handlePointsOpenChange}
-                    trigger="click"
-                    placement="bottomRight"
-                    content={<PointRecordPanel loading={pointsLoading} records={pointRecords} />}
-                >
+                <Popover rootClassName="user-points-popover" open={pointsOpen} onOpenChange={handlePointsOpenChange} trigger="click" placement="bottomRight" content={<PointRecordPanel loading={pointsLoading} records={pointRecords} />}>
                     <button
                         type="button"
                         className={cn(variant === "canvas" ? canvasControlClass : defaultControlClass, "gap-1 px-2 text-xs font-semibold sm:gap-1.5 sm:px-2.5", variant === "canvas" ? "canvas-points-action" : "app-points-action")}
@@ -257,12 +247,7 @@ export function UserStatusActions({ showConfig = true, variant = "default", onOp
             ) : null}
             {user ? (
                 <>
-                    <Dropdown
-                        {...(variant === "canvas" ? { open: accountOpen, onOpenChange: handleAccountOpenChange } : {})}
-                        menu={{ items: accountItems, onClick: handleAccountMenuClick }}
-                        trigger={["click"]}
-                        placement="bottomRight"
-                    >
+                    <Dropdown {...(variant === "canvas" ? { open: accountOpen, onOpenChange: handleAccountOpenChange } : {})} menu={{ items: accountItems, onClick: handleAccountMenuClick }} trigger={["click"]} placement="bottomRight">
                         <button
                             type="button"
                             className={cn(variant === "canvas" ? canvasControlClass : defaultControlClass, "max-w-[36px] gap-2 px-2.5 sm:max-w-40", variant === "canvas" ? "canvas-account-action" : "app-account-action")}

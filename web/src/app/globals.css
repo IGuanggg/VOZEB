@@ -305,11 +305,8 @@
     .auth-page-bg,
     .animated-dot-bg {
         background:
-            radial-gradient(ellipse 78% 42% at 50% 48%, rgba(255, 255, 255, 0.96), transparent 66%),
-            radial-gradient(ellipse 92% 46% at 50% 98%, rgba(14, 165, 233, 0.08), transparent 64%),
-            radial-gradient(circle at 16% 22%, rgba(14, 165, 233, 0.04), transparent 28%),
-            radial-gradient(circle at 86% 72%, rgba(96, 165, 250, 0.05), transparent 30%),
-            linear-gradient(180deg, #ffffff 0%, #ffffff 58%, #f8fbff 100%);
+            radial-gradient(ellipse 78% 42% at 50% 48%, rgba(255, 255, 255, 0.96), transparent 66%), radial-gradient(ellipse 92% 46% at 50% 98%, rgba(14, 165, 233, 0.08), transparent 64%),
+            radial-gradient(circle at 16% 22%, rgba(14, 165, 233, 0.04), transparent 28%), radial-gradient(circle at 86% 72%, rgba(96, 165, 250, 0.05), transparent 30%), linear-gradient(180deg, #ffffff 0%, #ffffff 58%, #f8fbff 100%);
         background-color: #ffffff;
         isolation: isolate;
         overflow-x: clip;
@@ -2710,5 +2707,4 @@ html.dark .canvas-agent-confirm-switch.ant-switch.ant-switch-checked:hover:not(.
     .profile-page-scroll {
         padding-bottom: calc(28px + env(safe-area-inset-bottom));
     }
-
 }

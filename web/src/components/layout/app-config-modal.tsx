@@ -10,7 +10,19 @@ import { fetchChannelModels } from "@/services/api/image";
 import { syncAppDataToWebdav, type AppSyncDomainKey, type AppSyncProgressEvent } from "@/services/app-sync";
 import { testWebdavConnection, WEBDAV_MANIFEST_FILE_NAME } from "@/services/webdav-sync";
 import { audioFormatOptions, audioVoiceOptions, normalizeAudioSpeedValue } from "@/lib/audio-generation";
-import { encodeChannelModel, filterModelsByCapability, modelOptionLabel, modelOptionsFromChannels, normalizeGenerationConcurrency, normalizeModelOptionValue, useConfigStore, type AiConfig, type GenerationConcurrencySettings, type ModelCapability, type ModelChannel } from "@/stores/use-config-store";
+import {
+    encodeChannelModel,
+    filterModelsByCapability,
+    modelOptionLabel,
+    modelOptionsFromChannels,
+    normalizeGenerationConcurrency,
+    normalizeModelOptionValue,
+    useConfigStore,
+    type AiConfig,
+    type GenerationConcurrencySettings,
+    type ModelCapability,
+    type ModelChannel,
+} from "@/stores/use-config-store";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -348,7 +360,11 @@ export function AppConfigModal() {
                                                         <div className="mt-0.5 text-xs leading-5 text-amber-900/80 dark:text-amber-100/75">新增或拉取模型后，需要到“模型”Tab 选择可选项才会显示。</div>
                                                     </div>
                                                 </div>
-                                                <Button size="small" className="shrink-0 border-amber-300 bg-white/75 text-amber-900 hover:!border-amber-400 hover:!text-amber-950 dark:border-amber-400/35 dark:bg-white/10 dark:text-amber-100 dark:hover:!border-amber-300 dark:hover:!text-amber-50" onClick={() => setActiveTab("models")}>
+                                                <Button
+                                                    size="small"
+                                                    className="shrink-0 border-amber-300 bg-white/75 text-amber-900 hover:!border-amber-400 hover:!text-amber-950 dark:border-amber-400/35 dark:bg-white/10 dark:text-amber-100 dark:hover:!border-amber-300 dark:hover:!text-amber-50"
+                                                    onClick={() => setActiveTab("models")}
+                                                >
                                                     去模型设置
                                                 </Button>
                                             </div>

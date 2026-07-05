@@ -197,7 +197,12 @@ function parseOpenAiContent(payload: ResponseApiPayload) {
 }
 
 function parseGeminiContent(payload: GeminiPayload) {
-    return payload.candidates?.flatMap((candidate) => candidate.content?.parts || []).map((part) => part.text || "").join("") || "";
+    return (
+        payload.candidates
+            ?.flatMap((candidate) => candidate.content?.parts || [])
+            .map((part) => part.text || "")
+            .join("") || ""
+    );
 }
 
 function validateResponsePayload(payload: ResponseApiPayload) {
