@@ -17,8 +17,8 @@ export async function GET() {
 
 export async function POST(request: Request) {
     const currentUser = await getCurrentUser();
-    if (!currentUser) return NextResponse.json({ error: "璇峰厛鐧诲綍" }, { status: 401 });
-    if (currentUser.role !== "admin") return NextResponse.json({ error: "闇€瑕佺鐞嗗憳鏉冮檺" }, { status: 403 });
+    if (!currentUser) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+    if (currentUser.role !== "admin") return NextResponse.json({ error: "需要管理员权限" }, { status: 403 });
 
     try {
         const body = await readJsonBody<{ username?: unknown; displayName?: unknown; email?: unknown; password?: unknown; role?: unknown; status?: unknown; pointsBalance?: unknown }>(request);
@@ -37,6 +37,6 @@ export async function POST(request: Request) {
     } catch (error) {
         if (isAuthInputError(error)) return NextResponse.json({ error: error.message }, { status: error.status });
         console.error("Admin user create failed", error);
-        return NextResponse.json({ error: "Create user failed" }, { status: 500 });
+        return NextResponse.json({ error: "新增用户失败" }, { status: 500 });
     }
 }

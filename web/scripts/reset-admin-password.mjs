@@ -1,5 +1,5 @@
 import { pbkdf2Sync, randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -7,6 +7,8 @@ const HASH_ALGORITHM = "pbkdf2_sha256";
 const ITERATIONS = 210_000;
 const KEY_LENGTH = 32;
 const DIGEST = "sha256";
+const PASSWORD_RESET_BACKUP_LIMIT = 3;
+const PASSWORD_RESET_BACKUP_PATTERN = /^auth-password-reset-.+\.json$/;
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 const webRoot = path.resolve(scriptDir, "..");
@@ -45,10 +47,12 @@ user.updatedAt = now;
 db.sessions = Array.isArray(db.sessions) ? db.sessions.filter((session) => session.userId !== user.id) : [];
 
 await writeAuthDb(db);
+const removedBackupCount = await prunePasswordResetBackups();
 
 console.log(`管理员密码已重置：${user.username} (${user.displayName || "未设置昵称"})`);
 console.log(`已清理该管理员旧登录会话，请使用新密码重新登录。`);
 console.log(`原始账号数据库已备份：${backupFile}`);
+if (removedBackupCount > 0) console.log(`已清理 ${removedBackupCount} 份旧密码重置备份，仅保留最近 ${PASSWORD_RESET_BACKUP_LIMIT} 份。`);
 
 function parseArgs(argv) {
     const parsed = {
@@ -149,6 +153,19 @@ async function backupAuthFile() {
     return backupFile;
 }
 
+async function prunePasswordResetBackups() {
+    const backupDir = path.join(dataDir, "restore-backups");
+    const entries = await readdir(backupDir, { withFileTypes: true });
+    const resetBackups = entries
+        .filter((entry) => entry.isFile() && PASSWORD_RESET_BACKUP_PATTERN.test(entry.name))
+        .map((entry) => entry.name)
+        .sort((left, right) => right.localeCompare(left));
+    const removable = resetBackups.slice(PASSWORD_RESET_BACKUP_LIMIT);
+
+    await Promise.all(removable.map((name) => unlink(path.join(backupDir, name))));
+    return removable.length;
+}
+
 async function writeAuthDb(db) {
     const tempFile = `${authFile}.tmp`;
     await writeFile(tempFile, `${JSON.stringify(db, null, 2)}\n`, "utf8");
@@ -188,6 +205,9 @@ function printHelp() {
   --data-dir <目录>       指定数据目录，默认使用 VOZEB_DATA_DIR 或 web/.data
   --list-admins           只列出管理员账号，不修改密码
   --help                  查看帮助
+
+说明：
+  每次重置前会备份 auth.json，密码重置备份最多保留最近 3 份。
 `);
 }
 

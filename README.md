@@ -1,12 +1,12 @@
 <p align="center">
-  <img src="web/public/logo.svg?v=0.8.7-white" width="108" alt="VOZEB logo">
+  <img src="web/public/logo.svg?v=0.8.8-white" width="108" alt="VOZEB logo">
 </p>
 
 <h1 align="center">VOZEB</h1>
 
 <p align="center">
   <a href="https://github.com/csyqlz/vozeb"><img src="https://img.shields.io/github/stars/csyqlz/vozeb?style=flat-square&logo=github" alt="GitHub stars"></a>
-  <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.8.7-2563eb?style=flat-square" alt="Version"></a>
+  <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.8.8-2563eb?style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-f97316?style=flat-square" alt="License"></a>
   <a href="https://vercel.com/"><img src="https://img.shields.io/badge/Vercel-ready-000000?style=flat-square&logo=vercel" alt="Vercel ready"></a>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-16.2-000000?style=flat-square&logo=nextdotjs" alt="Next.js"></a>
@@ -18,11 +18,15 @@
 
 VOZEB 是一款面向 AI 图片创作、素材管理和视觉方案迭代的开源工作台。它把无限画布、AI 生成、参考图编辑、提示词库、素材沉淀、用户权限、管理员配置和本地 Agent 能力放到同一个工作流里，适合个人创作者、本地部署场景和小团队内部使用。
 
-VOZEB 当前版本为 `v0.8.7`，这是基于原创开源画布项目继续开发的二开版本。感谢原创作者 basketikun 对无限画布、AI 创作工作流、Canvas Agent 和 Codex 插件能力的开源贡献。
+VOZEB 当前版本为 `v0.8.8`，这是基于原创开源画布项目继续开发的二开版本。感谢原创作者 basketikun 对无限画布、AI 创作工作流、Canvas Agent 和 Codex 插件能力的开源贡献。
 
 版本更新记录请查看 [GitHub Releases](https://github.com/csyqlz/vozeb/releases)。
 
 ## 最新更新
+
+`v0.8.8` 优化管理员密码重置脚本，重置前仍会自动备份 `.data/auth.json`，但只保留最近 3 份密码重置备份，避免多次修改后长期占用服务器空间。
+
+`v0.8.8` 修复后台新增用户接口的未登录、无权限和失败提示文案，避免管理员操作时出现乱码或英文兜底提示。
 
 `v0.8.7` 保留页面预加载体验，同时将配置弹窗、提示词库、素材库和版本更新弹窗改为空闲预热，减少首页与工作台首屏包体压力。
 
@@ -89,7 +93,7 @@ QQ 邮箱：smtp.qq.com / 465 / SSL 开启
 
 ### 5. 管理员忘记密码
 
-如果管理员还能登录后台，建议直接在 `管理员后台 -> 用户管理` 里重置密码。如果所有管理员都忘记密码，可以在服务器终端使用离线脚本修改 `.data/auth.json` 中指定管理员的密码哈希。脚本必须明确指定 `--username`、`--email` 或 `--id`，不会自动选择账号；写入前会先备份当前账号数据库到 `.data/restore-backups`，备份文件带时间戳且不会自动删除，多次重置会保留多份回滚点；脚本不会删除用户、提示词、生成日志或素材。
+如果管理员还能登录后台，建议直接在 `管理员后台 -> 用户管理` 里重置密码。如果所有管理员都忘记密码，可以在服务器终端使用离线脚本修改 `.data/auth.json` 中指定管理员的密码哈希。脚本必须明确指定 `--username`、`--email` 或 `--id`，不会自动选择账号；写入前会先备份当前账号数据库到 `.data/restore-backups`，密码重置备份只保留最近 3 份，避免长期占用空间；脚本不会删除用户、提示词、生成日志或素材。
 
 本地源码部署时，在 `web` 目录执行：
 
