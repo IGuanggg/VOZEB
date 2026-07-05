@@ -866,7 +866,7 @@ function FailedVideoCard({ error, selected, onSelectedChange, onRetry }: { error
 
 function ResultSelectCheckbox({ selected, onSelectedChange }: { selected?: boolean; onSelectedChange?: (checked: boolean) => void }) {
     if (!onSelectedChange) return null;
-    return <Checkbox aria-label="选择生成结果" className="absolute left-2 top-2 z-10" checked={selected} onClick={(event) => event.stopPropagation()} onChange={(event) => onSelectedChange(event.target.checked)} />;
+    return <Checkbox aria-label="选择生成结果" className="result-select-checkbox absolute left-2 top-2 z-10" checked={selected} onClick={(event) => event.stopPropagation()} onChange={(event) => onSelectedChange(event.target.checked)} />;
 }
 
 function LogPanel({

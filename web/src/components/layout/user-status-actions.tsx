@@ -281,26 +281,28 @@ function formatQuotaReward(rewardPoints?: number) {
 
 function PointRecordPanel({ loading, records }: { loading: boolean; records: PointRecord[] }) {
     return (
-        <div className="user-points-panel w-[min(18rem,calc(100vw-2rem))] max-w-[calc(100vw-2rem)]">
+        <div className="user-points-panel w-[min(14.75rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] overflow-hidden">
             <div className="mb-3 text-sm font-semibold text-stone-950 dark:text-stone-100">积分记录</div>
             {loading ? (
                 <div className="flex h-24 items-center justify-center">
                     <Spin size="small" />
                 </div>
             ) : records.length ? (
-                <div className="max-h-[min(20rem,60dvh)] space-y-2 overflow-y-auto pr-1">
+                <div className="max-h-[min(20rem,60dvh)] space-y-2 overflow-y-auto pr-0.5">
                     {records.map((record) => {
                         const positive = record.amount > 0;
+                        const description = splitPointRecordDescription(record.description);
                         return (
-                            <div key={record.id} className="rounded-md border border-stone-200 px-3 py-2 dark:border-stone-800">
-                                <div className="flex items-center justify-between gap-3">
-                                    <span className="min-w-0 truncate text-sm font-medium text-stone-800 dark:text-stone-100">{record.description}</span>
+                            <div key={record.id} className="rounded-md border border-stone-200 px-2.5 py-2 dark:border-stone-800">
+                                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                                    <span className="break-words text-sm font-semibold leading-5 text-stone-800 dark:text-stone-100">{description.model}</span>
                                     <Tag color={positive ? "green" : "red"} className="m-0 shrink-0">
                                         {positive ? "+" : ""}
                                         {record.amount}
                                     </Tag>
                                 </div>
-                                <div className="mt-1 flex items-center justify-between gap-3 text-xs text-stone-500">
+                                {description.action ? <div className="mt-0.5 break-words text-xs leading-4 text-stone-500 dark:text-stone-400">{description.action}</div> : null}
+                                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-stone-500">
                                     <span>{new Date(record.createdAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}</span>
                                     <span>余额 {record.balanceAfter.toLocaleString()}</span>
                                 </div>
@@ -313,4 +315,13 @@ function PointRecordPanel({ loading, records }: { loading: boolean; records: Poi
             )}
         </div>
     );
+}
+
+function splitPointRecordDescription(description: string) {
+    const text = description.trim();
+    const actions = ["生成图片调用失败退回", "生成视频调用失败退回", "生成音频调用失败退回", "生成文本调用失败退回", "生成图片调用扣除", "生成视频调用扣除", "生成音频调用扣除", "生成文本调用扣除", "接口调用失败退回", "接口调用扣除"];
+    const action = actions.find((item) => text.endsWith(item));
+    if (!action) return { model: text, action: "" };
+    const model = text.slice(0, -action.length).trim();
+    return { model: model || "模型", action };
 }
