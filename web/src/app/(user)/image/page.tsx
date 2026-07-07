@@ -136,6 +136,7 @@ export default function ImagePage() {
     const imageTaskQueueRef = useRef<Array<() => void>>([]);
     const imageConcurrencyLimitRef = useRef(4);
     const userIdRef = useRef("");
+    const mountedRef = useRef(false);
     const [activeImageTasks, setActiveImageTasks] = useState(0);
 
     const model = effectiveConfig.imageModel || effectiveConfig.model;
@@ -152,6 +153,13 @@ export default function ImagePage() {
         count: generationCount,
         quality: effectiveConfig.quality,
     });
+
+    useEffect(() => {
+        mountedRef.current = true;
+        return () => {
+            mountedRef.current = false;
+        };
+    }, []);
 
     useEffect(() => {
         userIdRef.current = userId;
@@ -187,9 +195,7 @@ export default function ImagePage() {
 
     useEffect(() => {
         return () => {
-            taskControllersRef.current.forEach((controller) => controller.abort());
             taskControllersRef.current.clear();
-            imageTaskQueueRef.current.splice(0);
         };
     }, []);
 
@@ -228,18 +234,18 @@ export default function ImagePage() {
     function replaceLogs(nextLogs: GenerationLog[]) {
         const visibleLogs = nextLogs.filter((log) => !deletedLogIdsRef.current.has(log.id));
         logsRef.current = visibleLogs;
-        setLogs(visibleLogs);
+        if (mountedRef.current) setLogs(visibleLogs);
         const activeLogId = activeLogIdRef.current;
         if (activeLogId) {
             const nextActiveLog = visibleLogs.find((log) => log.id === activeLogId);
-            if (nextActiveLog) setPreviewLog(nextActiveLog);
+            if (nextActiveLog && mountedRef.current) setPreviewLog(nextActiveLog);
         }
-        resumePendingLogs(visibleLogs);
+        if (mountedRef.current) resumePendingLogs(visibleLogs);
     }
 
     function upsertLog(log: GenerationLog) {
         replaceLogs([log, ...logsRef.current.filter((item) => item.id !== log.id)].sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)));
-        if (activeLogIdRef.current === log.id) setPreviewLog(log);
+        if (activeLogIdRef.current === log.id && mountedRef.current) setPreviewLog(log);
     }
 
     const saveLog = async (log: GenerationLog) => {
@@ -267,7 +273,7 @@ export default function ImagePage() {
 
     function setLogResults(logId: string, nextResults: GenerationResult[]) {
         resultsByLogIdRef.current.set(logId, nextResults);
-        if (activeLogIdRef.current === logId) setResults(nextResults);
+        if (activeLogIdRef.current === logId && mountedRef.current) setResults(nextResults);
     }
 
     function persistLogResults(logId: string, snapshot: GenerationSnapshot, nextResults: GenerationResult[], durationMs: number, error?: string) {
@@ -310,7 +316,7 @@ export default function ImagePage() {
     function reserveImageTaskSlot() {
         const nextActive = activeImageTasksRef.current + 1;
         activeImageTasksRef.current = nextActive;
-        setActiveImageTasks(nextActive);
+        if (mountedRef.current) setActiveImageTasks(nextActive);
     }
 
     function startQueuedImageTasks() {
@@ -333,7 +339,7 @@ export default function ImagePage() {
     function releaseImageTaskSlot() {
         const nextActive = Math.max(0, activeImageTasksRef.current - 1);
         activeImageTasksRef.current = nextActive;
-        setActiveImageTasks(nextActive);
+        if (mountedRef.current) setActiveImageTasks(nextActive);
         startQueuedImageTasks();
     }
 
@@ -432,13 +438,13 @@ export default function ImagePage() {
         startedResults.slice(baseResults.length).forEach((result, offset) => {
             void runQueuedImageTask(logId, result.id, () => runGenerationSlot(logId, result.id, baseResults.length + offset, snapshot, batchStartedAt, baseDurationMs))
                 .then((image) => {
-                    if (image) message.success("图片已生成");
+                    if (image && mountedRef.current) message.success("图片已生成");
                 })
                 .catch((error) => {
-                    if (!deletedResultIdsRef.current.has(`${logId}:${result.id}`)) message.error(error instanceof Error ? error.message : "生成失败");
+                    if (mountedRef.current && !deletedResultIdsRef.current.has(`${logId}:${result.id}`)) message.error(error instanceof Error ? error.message : "生成失败");
                 });
         });
-        message.success("已加入当前用户生成队列");
+        if (mountedRef.current) message.success("已加入当前用户生成队列");
     };
 
     const downloadImage = (image: GeneratedImage, index: number) => {
