@@ -1,11 +1,12 @@
 "use client";
 
 import { Copy, Download, PencilLine, Search, Trash2, Upload } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { App, Button, Card, Drawer, Empty, Form, Image, Input, Modal, Pagination, Select, Space, Tag, Typography } from "antd";
 import { saveAs } from "file-saver";
 
 import { useCopyText } from "@/hooks/use-copy-text";
+import { droppedFiles, leftDropTarget, preventFileDragEvent } from "@/lib/file-drop";
 import { formatBytes, readFileAsDataUrl } from "@/lib/image-utils";
 import { uploadImage } from "@/services/image-storage";
 import { cn } from "@/lib/utils";
@@ -50,6 +51,8 @@ export default function AssetsPage() {
     const [isAssetOpen, setIsAssetOpen] = useState(false);
     const [previewAsset, setPreviewAsset] = useState<Asset | null>(null);
     const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
+    const [isCoverDragActive, setIsCoverDragActive] = useState(false);
+    const [isImageDragActive, setIsImageDragActive] = useState(false);
     const [formKind, setFormKind] = useState<AssetKind>("text");
     const [imageDraft, setImageDraft] = useState<ImageDraft>(null);
     const coverUrl = Form.useWatch("coverUrl", form) || "";
@@ -141,6 +144,40 @@ export default function AssetsPage() {
         setImageDraft(draft);
         if (!form.getFieldValue("coverUrl")) form.setFieldValue("coverUrl", draft.dataUrl);
         if (!form.getFieldValue("title")) form.setFieldValue("title", file.name);
+    };
+
+    const handleCoverDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event)) return;
+        setIsCoverDragActive(true);
+    };
+
+    const handleCoverDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event) || !leftDropTarget(event)) return;
+        setIsCoverDragActive(false);
+    };
+
+    const handleCoverDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event)) return;
+        setIsCoverDragActive(false);
+        const [file] = droppedFiles(event, (item) => item.type.startsWith("image/"));
+        if (file) void readCoverFile(file);
+    };
+
+    const handleImageDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event)) return;
+        setIsImageDragActive(true);
+    };
+
+    const handleImageDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event) || !leftDropTarget(event)) return;
+        setIsImageDragActive(false);
+    };
+
+    const handleImageDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event)) return;
+        setIsImageDragActive(false);
+        const [file] = droppedFiles(event, (item) => item.type.startsWith("image/"));
+        if (file) void readImageFile(file);
     };
 
     const copyAssetText = async (asset: Asset) => {
@@ -299,12 +336,20 @@ export default function AssetsPage() {
                             <Input size="large" placeholder="给素材起一个容易检索的名字" />
                         </Form.Item>
                         <Form.Item name="coverUrl" label="封面 URL">
-                            <Space.Compact className="w-full">
-                                <Input placeholder="可粘贴图片 URL，也可以上传本地封面" />
-                                <Button icon={<Upload className="size-3.5" />} onClick={() => coverInputRef.current?.click()}>
-                                    上传
-                                </Button>
-                            </Space.Compact>
+                            <div
+                                className={cn("rounded-md transition", isCoverDragActive && "ring-2 ring-cyan-300 ring-offset-2 ring-offset-white dark:ring-cyan-500 dark:ring-offset-stone-950")}
+                                onDragEnter={handleCoverDragOver}
+                                onDragOver={handleCoverDragOver}
+                                onDragLeave={handleCoverDragLeave}
+                                onDrop={handleCoverDrop}
+                            >
+                                <Space.Compact className="w-full">
+                                    <Input placeholder="可粘贴图片 URL，也可以上传本地封面" />
+                                    <Button icon={<Upload className="size-3.5" />} onClick={() => coverInputRef.current?.click()}>
+                                        上传
+                                    </Button>
+                                </Space.Compact>
+                            </div>
                         </Form.Item>
                         <Form.Item name="tags" label="标签">
                             <Select mode="tags" tokenSeparators={[",", "，"]} placeholder="输入标签后回车" />
@@ -323,7 +368,16 @@ export default function AssetsPage() {
                             </Form.Item>
                         ) : (
                             <Form.Item label="图片内容" required>
-                                <div className="rounded-lg border border-dashed border-stone-300 p-4 dark:border-stone-700">
+                                <div
+                                    className={cn(
+                                        "rounded-lg border border-dashed border-stone-300 p-4 transition dark:border-stone-700",
+                                        isImageDragActive && "border-cyan-400 bg-cyan-50/60 ring-1 ring-cyan-200 dark:border-cyan-400 dark:bg-cyan-500/10 dark:ring-cyan-400/25",
+                                    )}
+                                    onDragEnter={handleImageDragOver}
+                                    onDragOver={handleImageDragOver}
+                                    onDragLeave={handleImageDragLeave}
+                                    onDrop={handleImageDrop}
+                                >
                                     <Button icon={<Upload className="size-4" />} onClick={() => imageInputRef.current?.click()}>
                                         选择图片文件
                                     </Button>

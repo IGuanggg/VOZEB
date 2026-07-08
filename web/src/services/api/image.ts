@@ -683,6 +683,7 @@ export async function createImageGenerationTask(config: AiConfig, prompt: string
                 quality: requestConfig.quality,
                 size: requestConfig.size,
                 systemPrompt: "",
+                advancedConfig: requestConfig.advancedConfig,
             },
             prompt,
             references: taskReferences,
@@ -703,12 +704,24 @@ async function referenceToTaskInput(reference: ReferenceImage) {
     const dataUrl = (await imageToDataUrl(reference)).trim();
     if (!dataUrl) throw new Error("参考图读取失败，请重新上传参考图");
     if (dataUrl.startsWith("blob:")) throw new Error("参考图本地缓存已失效，请重新上传参考图");
-    const remoteUrl = isRemoteReferenceUrl(reference.url) ? reference.url : isRemoteReferenceUrl(reference.dataUrl) ? reference.dataUrl : undefined;
-    return { id: reference.id, name: reference.name, type: reference.type, dataUrl, url: remoteUrl };
+    const remoteUrl = firstRemoteReferenceUrl(reference.remoteUrl, reference.url, reference.serverUrl, reference.dataUrl, dataUrl);
+    return {
+        id: reference.id,
+        name: reference.name,
+        type: reference.type,
+        dataUrl,
+        url: remoteUrl,
+        remoteUrl: isRemoteReferenceUrl(reference.remoteUrl) ? reference.remoteUrl : remoteUrl,
+        serverUrl: reference.serverUrl,
+    };
 }
 
 function isRemoteReferenceUrl(value?: string) {
     return /^https?:\/\//i.test(value || "");
+}
+
+function firstRemoteReferenceUrl(...values: Array<string | undefined>) {
+    return values.find((value) => isRemoteReferenceUrl(value));
 }
 
 export async function waitForImageGenerationTask(config: AiConfig, task: ImageGenerationTask, options?: RequestOptions) {

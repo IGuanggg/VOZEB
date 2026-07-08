@@ -27,7 +27,9 @@ export type VideoGenerationResult = { blob?: Blob; url?: string; remoteUrl?: str
 export type VideoGenerationTask = { id: string; provider: "openai" | "seedance" | "generation"; model: string; pollPath?: string; resultUrl?: string };
 export type VideoGenerationTaskState = { status: "pending" } | { status: "completed"; result: VideoGenerationResult } | { status: "failed"; error: string };
 
-const VIDEO_CREATE_PATHS = ["/video/generations", "/videos/generations"];
+const GLOBAL_AIOPC_VIDEO_CREATE_PATH = "/videos/videos";
+const GLOBAL_AIOPC_VIDEO_RESULT_PATH = "/result";
+const VIDEO_CREATE_PATHS = ["/video/generations", "/videos/generations", GLOBAL_AIOPC_VIDEO_CREATE_PATH];
 const VIDEO_URL_KEYS = [
     "video_url",
     "videoUrl",
@@ -102,10 +104,17 @@ export async function createVideoGenerationTask(config: AiConfig, prompt: string
     const selectedModel = (config.model || config.videoModel).trim();
     const requestConfig = resolveModelRequestConfig(config, selectedModel);
     assertVideoConfig(requestConfig, requestConfig.model);
-    if (isSeedanceVideoConfig(requestConfig)) {
+    const protocol = requestConfig.advancedConfig?.protocol === "sub2api" ? "auto" : requestConfig.advancedConfig?.protocol || "auto";
+    if (protocol === "seedance" || (protocol === "auto" && isSeedanceVideoConfig(requestConfig))) {
         return createSeedanceTask(requestConfig, selectedModel, prompt, references, videoReferences, audioReferences, options);
     }
+    if (protocol === "globalaiopc" || protocol === "compatible") {
+        return createCompatibleVideoTask(requestConfig, selectedModel, prompt, references, options, videoReferences, audioReferences);
+    }
     if (videoReferences.length || audioReferences.length) {
+        if (isGlobalAiOpcVideoConfig(requestConfig, selectedModel)) {
+            return createCompatibleVideoTask(requestConfig, selectedModel, prompt, references, options, videoReferences, audioReferences);
+        }
         throw new Error("当前视频接口不支持参考视频或参考音频，请切换到 Seedance 2.0 / 火山 Agent Plan 模型，或移除参考素材");
     }
     return createOpenAIVideoTask(requestConfig, selectedModel, prompt, references, options);
@@ -155,7 +164,7 @@ async function createOpenAIVideoTask(config: AiConfig, model: string, prompt: st
         return { id: created.id, provider: "openai", model };
     } catch (error) {
         const errorMessage = readAxiosError(error, "视频任务创建失败");
-        if (shouldFallbackToCompatibleVideo(error, errorMessage)) return createCompatibleVideoTask(config, model, prompt, references, options);
+        if (config.advancedConfig?.protocol !== "openai" && shouldFallbackToCompatibleVideo(error, errorMessage)) return createCompatibleVideoTask(config, model, prompt, references, options);
         await refreshUserPointsIfSystem(config.apiSource);
         throw new Error(videoCreationError(errorMessage));
     }
@@ -178,10 +187,18 @@ async function pollOpenAIVideoTask(config: AiConfig, task: VideoGenerationTask, 
     }
 }
 
-async function createCompatibleVideoTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], options?: RequestOptions): Promise<VideoGenerationTask> {
-    const payloads = await buildCompatibleVideoPayloadVariants(config, model, prompt, references);
+async function createCompatibleVideoTask(
+    config: AiConfig,
+    model: string,
+    prompt: string,
+    references: ReferenceImage[],
+    options?: RequestOptions,
+    videoReferences: ReferenceVideo[] = [],
+    audioReferences: ReferenceAudio[] = [],
+): Promise<VideoGenerationTask> {
     let lastError = "";
-    for (const path of VIDEO_CREATE_PATHS) {
+    for (const path of compatibleVideoCreatePaths(config, model)) {
+        const payloads = await buildCompatibleVideoPayloadVariants(config, model, prompt, references, path, videoReferences, audioReferences);
         for (const payload of payloads) {
             try {
                 const response = await axios.post<ApiEnvelope<Record<string, unknown>>>(aiApiUrl(config, path), payload, { headers: aiHeaders(config, "application/json"), signal: options?.signal });
@@ -192,7 +209,7 @@ async function createCompatibleVideoTask(config: AiConfig, model: string, prompt
                     continue;
                 }
                 const id = readTaskId(created);
-                const immediateUrl = findMediaUrl(created);
+                const immediateUrl = readConfiguredMediaUrl(config, created) || findMediaUrl(created);
                 if (immediateUrl) {
                     await refreshUserPointsIfSystem(config.apiSource);
                     return { id: id || `direct:${Date.now()}`, provider: "generation", model, pollPath: path, resultUrl: immediateUrl };
@@ -214,16 +231,29 @@ async function createCompatibleVideoTask(config: AiConfig, model: string, prompt
     throw new Error(videoCreationError(lastError || "视频任务创建失败"));
 }
 
+function compatibleVideoCreatePaths(config: AiConfig, model: string) {
+    const configuredPath = normalizeAdvancedVideoPath(config.advancedConfig?.createPath);
+    const defaultPaths = isGlobalAiOpcVideoConfig(config, model) ? [GLOBAL_AIOPC_VIDEO_CREATE_PATH, ...VIDEO_CREATE_PATHS.filter((path) => path !== GLOBAL_AIOPC_VIDEO_CREATE_PATH)] : VIDEO_CREATE_PATHS;
+    return uniqueStrings([configuredPath, ...defaultPaths]);
+}
+
+function isGlobalAiOpcVideoConfig(config: AiConfig, model: string) {
+    if (config.advancedConfig?.protocol === "globalaiopc") return true;
+    if (normalizeAdvancedVideoPath(config.advancedConfig?.createPath).toLowerCase().endsWith(GLOBAL_AIOPC_VIDEO_CREATE_PATH)) return true;
+    const baseUrl = config.baseUrl.toLowerCase();
+    const modelName = modelOptionName(model).toLowerCase();
+    return baseUrl.includes("globalaiopc.com") || baseUrl.includes("aizfw.cn") || baseUrl.includes("kyyreactapiserver") || ["videos", "videos_stable", "videos_stable_fast"].includes(modelName);
+}
+
 async function pollCompatibleVideoTask(config: AiConfig, task: VideoGenerationTask, options?: RequestOptions): Promise<VideoGenerationTaskState> {
-    const paths = Array.from(new Set([task.pollPath || VIDEO_CREATE_PATHS[0], ...VIDEO_CREATE_PATHS]));
+    const requestUrls = compatibleVideoPollUrls(config, task);
     let lastError = "";
-    for (const path of paths) {
-        const requestUrl = aiApiUrl(config, `${path}/${encodeURIComponent(task.id)}`);
+    for (const requestUrl of requestUrls) {
         try {
             const response = await axios.get<ApiEnvelope<Record<string, unknown>>>(requestUrl, { headers: aiHeaders(config), signal: options?.signal });
             const state = unwrapEnvelope(response.data, "视频接口没有返回任务") as Record<string, unknown>;
-            const status = readTaskStatus(state);
-            const videoUrl = findMediaUrl(state);
+            const status = readConfiguredTaskStatus(config, state) || readTaskStatus(state);
+            const videoUrl = readConfiguredMediaUrl(config, state) || findMediaUrl(state);
             if (videoUrl && (!status || isCompletedStatus(status) || !isPendingStatus(status))) {
                 const resolvedUrl = resolveVideoMediaUrl(config, videoUrl, readHeader(response.headers, "x-vozeb-upstream-url") || requestUrl);
                 return { status: "completed", result: await videoResultFromUrl(resolvedUrl, options) };
@@ -238,6 +268,29 @@ async function pollCompatibleVideoTask(config: AiConfig, task: VideoGenerationTa
         }
     }
     throw new Error(videoQueryError(lastError || "视频任务查询失败"));
+}
+
+function compatibleVideoPollUrls(config: AiConfig, task: VideoGenerationTask) {
+    return compatibleVideoPollPaths(config, task).map((path) => aiApiUrl(config, applyTaskIdToVideoPath(path, task.id)));
+}
+
+function compatibleVideoPollPaths(config: AiConfig, task: VideoGenerationTask) {
+    const configuredPath = normalizeAdvancedVideoPath(config.advancedConfig?.queryPath);
+    const paths = task.pollPath === GLOBAL_AIOPC_VIDEO_CREATE_PATH ? [configuredPath, GLOBAL_AIOPC_VIDEO_RESULT_PATH, task.pollPath, ...VIDEO_CREATE_PATHS] : [configuredPath, task.pollPath || VIDEO_CREATE_PATHS[0], ...VIDEO_CREATE_PATHS];
+    return uniqueStrings(paths);
+}
+
+function applyTaskIdToVideoPath(path: string, taskId: string) {
+    const encodedTaskId = encodeURIComponent(taskId);
+    const templated = path.replace(/\{(?:task_id|taskId|id)\}/g, encodedTaskId).replace(/:(?:task_id|taskId|id)\b/g, encodedTaskId);
+    if (templated !== path) return templated;
+    return `${path.replace(/\/+$/, "")}/${encodedTaskId}`;
+}
+
+function normalizeAdvancedVideoPath(value?: string) {
+    const path = (value || "").trim();
+    if (!path) return "";
+    return path.startsWith("/") ? path : `/${path}`;
 }
 
 async function createSeedanceTask(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], videoReferences: ReferenceVideo[], audioReferences: ReferenceAudio[], options?: RequestOptions): Promise<VideoGenerationTask> {
@@ -314,15 +367,63 @@ function seedanceApiUrl(config: AiConfig, taskId?: string) {
     return buildApiUrl(config.baseUrl, `/contents/generations/tasks${taskId ? `/${encodeURIComponent(taskId)}` : ""}`);
 }
 
-async function buildCompatibleVideoPayloadVariants(config: AiConfig, model: string, prompt: string, references: ReferenceImage[]) {
-    const imageSources = await Promise.all(references.slice(0, 9).map(resolveCompatibleImageSources));
+async function buildCompatibleVideoPayloadVariants(config: AiConfig, model: string, prompt: string, references: ReferenceImage[], path: string, videoReferences: ReferenceVideo[] = [], audioReferences: ReferenceAudio[] = []) {
+    const qingyanVideoConfig = isQingyanVideoConfig(config, model);
+    const publicUrlReferenceMode = shouldUsePublicVideoReferenceUrls(config, path, qingyanVideoConfig);
+    const imageSources = await Promise.all(
+        references
+            .slice(0, 9)
+            .map((reference) => (path === GLOBAL_AIOPC_VIDEO_CREATE_PATH ? Promise.resolve(resolveGlobalAiOpcImageSources(reference)) : publicUrlReferenceMode ? resolveQingyanImageSources(reference) : resolveCompatibleImageSources(reference))),
+    );
     const images = uniqueStrings(imageSources.flat());
-    const duration = normalizeCompatibleVideoDuration(config.videoSeconds);
+    if (path === GLOBAL_AIOPC_VIDEO_CREATE_PATH && references.length && !images.length) {
+        throw new Error("GlobalAiOpc 视频接口的参考图需要公网图片 URL，当前本地参考图无法直接提交给上游");
+    }
+    if (path !== GLOBAL_AIOPC_VIDEO_CREATE_PATH && publicUrlReferenceMode && references.length && !images.length) {
+        throw new Error("\u53c2\u8003\u56fe\u9700\u8981\u516c\u7f51\u56fe\u7247 URL\uff1b\u672c\u5730\u5f00\u53d1 localhost \u4e0d\u80fd\u76f4\u63a5\u63d0\u4ea4\u7ed9\u4e0a\u6e38\uff0c\u8bf7\u90e8\u7f72\u540e\u914d\u7f6e NEXT_PUBLIC_SITE_URL");
+    }
+    const publicReferenceVideos = uniqueStrings(videoReferences.slice(0, 3).flatMap(resolveGlobalAiOpcMediaReferenceSources));
+    const publicReferenceAudios = uniqueStrings(audioReferences.slice(0, 3).flatMap(resolveGlobalAiOpcMediaReferenceSources));
+    const referenceVideos = path === GLOBAL_AIOPC_VIDEO_CREATE_PATH ? publicReferenceVideos : [];
+    const referenceAudios = path === GLOBAL_AIOPC_VIDEO_CREATE_PATH ? publicReferenceAudios : [];
+    if (path === GLOBAL_AIOPC_VIDEO_CREATE_PATH && videoReferences.length && !referenceVideos.length) {
+        throw new Error("GlobalAiOpc 视频接口的参考视频需要公网视频 URL，当前本地参考视频无法直接提交给上游");
+    }
+    if (path === GLOBAL_AIOPC_VIDEO_CREATE_PATH && audioReferences.length && !referenceAudios.length) {
+        throw new Error("GlobalAiOpc 视频接口的参考音频需要公网音频 URL，当前本地参考音频无法直接提交给上游");
+    }
+    const duration = path === GLOBAL_AIOPC_VIDEO_CREATE_PATH ? normalizeGlobalAiOpcVideoDuration(config.videoSeconds) : normalizeCompatibleVideoDuration(config.videoSeconds);
     const ratio = normalizeCompatibleVideoRatio(config.size);
     const quality = normalizeCompatibleVideoQuality(config.vquality);
     const size = normalizeVideoSize(config.size) || "1280x720";
     const dimensions = normalizeCompatibleVideoDimensions(config.size);
-    const mediaPayloads = buildCompatibleVideoMediaPayloads(images);
+    const mediaPayloads = path === GLOBAL_AIOPC_VIDEO_CREATE_PATH ? buildGlobalAiOpcVideoMediaPayloads(images) : qingyanVideoConfig ? buildQingyanVideoMediaPayloads(images) : buildCompatibleVideoMediaPayloads(images);
+    const templatePayloads = buildAdvancedVideoTemplatePayloads(config, model, prompt, {
+        duration,
+        ratio,
+        resolution: normalizeVideoResolution(config.vquality),
+        quality,
+        size,
+        width: dimensions.width,
+        height: dimensions.height,
+        images,
+        referenceVideos: publicReferenceVideos,
+        referenceAudios: publicReferenceAudios,
+    });
+    if (path === GLOBAL_AIOPC_VIDEO_CREATE_PATH) {
+        const payloads = mediaPayloads.map((mediaPayload) => ({
+            model: modelOptionName(model),
+            prompt,
+            duration,
+            ratio,
+            resolution: normalizeVideoResolution(config.vquality),
+            autoFace: false,
+            ...(referenceVideos.length ? { referenceVideos } : {}),
+            ...(referenceAudios.length ? { referenceAudios } : {}),
+            ...mediaPayload,
+        }));
+        return uniquePayloads([...templatePayloads, ...payloads]);
+    }
     const base = {
         model: modelOptionName(model),
         prompt,
@@ -339,11 +440,156 @@ async function buildCompatibleVideoPayloadVariants(config: AiConfig, model: stri
         generate_audio: boolConfig(config.videoGenerateAudio, true),
         watermark: boolConfig(config.videoWatermark, false),
     };
-    return mediaPayloads.flatMap((mediaPayload) => [
+    const payloads = mediaPayloads.flatMap((mediaPayload) => [
         { ...base, ...mediaPayload, duration },
         { ...base, ...mediaPayload, seconds: String(duration), duration },
         { ...base, ...mediaPayload, seconds: String(duration) },
     ]);
+    return uniquePayloads([...templatePayloads, ...payloads]);
+}
+
+type AdvancedVideoTemplateContext = {
+    duration: number;
+    ratio: string;
+    resolution: string;
+    quality: string;
+    size: string;
+    width: number;
+    height: number;
+    images: string[];
+    referenceVideos: string[];
+    referenceAudios: string[];
+};
+
+function buildAdvancedVideoTemplatePayloads(config: AiConfig, model: string, prompt: string, context: AdvancedVideoTemplateContext) {
+    const template = (config.advancedConfig?.requestTemplate || "").trim();
+    if (!template || (!template.startsWith("{") && !template.startsWith("["))) return [];
+
+    let parsed: unknown;
+    try {
+        parsed = JSON.parse(template);
+    } catch {
+        return [];
+    }
+
+    const variables: Record<string, unknown> = {
+        model: modelOptionName(model),
+        prompt,
+        duration: context.duration,
+        seconds: String(context.duration),
+        ratio: context.ratio,
+        aspect_ratio: context.ratio,
+        resolution: context.resolution,
+        quality: context.quality,
+        size: context.size,
+        width: context.width,
+        height: context.height,
+        image: context.images[0] || "",
+        images: context.images,
+        referenceImage: context.images[0] || "",
+        referenceImages: context.images,
+        referenceVideo: context.referenceVideos[0] || "",
+        referenceVideos: context.referenceVideos,
+        referenceAudio: context.referenceAudios[0] || "",
+        referenceAudios: context.referenceAudios,
+    };
+    const rendered = renderAdvancedTemplateValue(parsed, variables);
+    const payloads = Array.isArray(rendered) ? rendered : [rendered];
+    return payloads.filter(isRecord).map((payload) => alignAdvancedVideoPayload(payload, model, prompt, context));
+}
+
+function renderAdvancedTemplateValue(value: unknown, variables: Record<string, unknown>): unknown {
+    if (typeof value === "string") {
+        const exact = value.match(/^{{\s*([a-zA-Z_][\w]*)\s*}}$/);
+        if (exact) return variables[exact[1]] ?? "";
+        return value.replace(/{{\s*([a-zA-Z_][\w]*)\s*}}/g, (_match, key: string) => templateVariableText(variables[key]));
+    }
+    if (Array.isArray(value)) return value.map((item) => renderAdvancedTemplateValue(item, variables));
+    if (isRecord(value)) {
+        return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, renderAdvancedTemplateValue(item, variables)]));
+    }
+    return value;
+}
+
+function templateVariableText(value: unknown) {
+    if (value === undefined || value === null) return "";
+    if (Array.isArray(value) || isRecord(value)) return JSON.stringify(value);
+    return String(value);
+}
+
+function alignAdvancedVideoPayload(payload: Record<string, unknown>, model: string, prompt: string, context: AdvancedVideoTemplateContext) {
+    const next = { ...payload };
+    if ("model" in next) next.model = modelOptionName(model);
+    if ("prompt" in next) next.prompt = prompt;
+    if ("duration" in next) next.duration = context.duration;
+    if ("seconds" in next) next.seconds = typeof next.seconds === "number" ? context.duration : String(context.duration);
+    if ("ratio" in next) next.ratio = context.ratio;
+    if ("aspect_ratio" in next) next.aspect_ratio = context.ratio;
+    if ("resolution" in next) next.resolution = context.resolution;
+    if ("quality" in next) next.quality = context.quality;
+    if ("size" in next) next.size = context.size;
+    if ("width" in next) next.width = context.width;
+    if ("height" in next) next.height = context.height;
+    alignSingleReferenceField(next, "image", context.images[0]);
+    alignSingleReferenceField(next, "image_url", context.images[0]);
+    alignSingleReferenceField(next, "input_image", context.images[0]);
+    alignSingleReferenceField(next, "referenceImage", context.images[0]);
+    alignSingleReferenceField(next, "reference_image", context.images[0]);
+    alignListReferenceField(next, "images", context.images);
+    alignListReferenceField(next, "image_urls", context.images);
+    alignListReferenceField(next, "input_images", context.images);
+    alignListReferenceField(next, "ref_assets", context.images);
+    alignListReferenceField(next, "referenceImages", context.images);
+    alignListReferenceField(next, "reference_images", context.images);
+    alignSingleReferenceField(next, "referenceVideo", context.referenceVideos[0]);
+    alignSingleReferenceField(next, "reference_video", context.referenceVideos[0]);
+    alignListReferenceField(next, "referenceVideos", context.referenceVideos);
+    alignListReferenceField(next, "reference_videos", context.referenceVideos);
+    alignSingleReferenceField(next, "referenceAudio", context.referenceAudios[0]);
+    alignSingleReferenceField(next, "reference_audio", context.referenceAudios[0]);
+    alignListReferenceField(next, "referenceAudios", context.referenceAudios);
+    alignListReferenceField(next, "reference_audios", context.referenceAudios);
+    return next;
+}
+
+function alignSingleReferenceField(payload: Record<string, unknown>, key: string, value?: string) {
+    if (!(key in payload)) return;
+    if (!shouldAutoAlignReferenceField(payload[key])) return;
+    if (value) payload[key] = value;
+    else delete payload[key];
+}
+
+function alignListReferenceField(payload: Record<string, unknown>, key: string, values: string[]) {
+    if (!(key in payload)) return;
+    if (!shouldAutoAlignReferenceField(payload[key])) return;
+    if (values.length) payload[key] = values;
+    else delete payload[key];
+}
+
+function shouldAutoAlignReferenceField(value: unknown) {
+    if (typeof value === "string") return !value.trim() || value.includes("{{") || value.includes("https://...");
+    if (Array.isArray(value)) return !value.length || value.some((item) => typeof item === "string" && (!item.trim() || item.includes("{{") || item.includes("https://...")));
+    return false;
+}
+
+function uniquePayloads(payloads: Array<Record<string, unknown>>) {
+    const seen = new Set<string>();
+    return payloads.filter((payload) => {
+        const key = JSON.stringify(payload);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+    });
+}
+
+function shouldUsePublicVideoReferenceUrls(config: AiConfig, path: string, qingyanVideoConfig: boolean) {
+    if (path === GLOBAL_AIOPC_VIDEO_CREATE_PATH || qingyanVideoConfig) return true;
+    const rule = (config.advancedConfig?.referenceRule || "").trim().toLowerCase();
+    return /\u516c\u7f51|public|next_public_site_url|localhost|must.*\burl\b|\burl\b.*only|\u5fc5\u987b.*\burl\b|\u4ec5.*\burl\b|\u53ea.*\burl\b/i.test(rule);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function buildCompatibleVideoMediaPayloads(images: string[]) {
@@ -382,6 +628,16 @@ function buildCompatibleVideoMediaPayloads(images: string[]) {
     ];
 }
 
+function buildGlobalAiOpcVideoMediaPayloads(images: string[]) {
+    if (!images.length) return [{}];
+    return [{ referenceImages: images }];
+}
+
+function buildQingyanVideoMediaPayloads(images: string[]) {
+    if (!images.length) return [{}];
+    return images.length === 1 ? [{ image: images[0] }] : [{ images }, { image: images[0], images }];
+}
+
 async function resolveCompatibleImageSources(image: ReferenceImage) {
     const sources: string[] = [];
     const dataUrl = (await imageToDataUrl(image)).trim();
@@ -389,6 +645,30 @@ async function resolveCompatibleImageSources(image: ReferenceImage) {
     sources.push(...compatibleImageSourceCandidates(image.url));
     sources.push(...compatibleImageSourceCandidates(image.dataUrl));
     return uniqueStrings(sources);
+}
+
+async function resolveQingyanImageSources(image: ReferenceImage) {
+    const directUrls = uniqueStrings([...externalPublicImageSourceCandidates(image.url), ...externalPublicImageSourceCandidates(image.dataUrl)]);
+    if (directUrls.length) return directUrls;
+
+    const dataUrl = (await imageToDataUrl(image)).trim();
+    if (!dataUrl || !/^data:image\//i.test(dataUrl)) return [];
+    const publishedUrl = await publishReferenceImage(dataUrl);
+    return externalPublicImageSourceCandidates(publishedUrl);
+}
+
+async function resolveGlobalAiOpcImageSources(image: ReferenceImage) {
+    const directUrls = uniqueStrings([...externalPublicImageSourceCandidates(image.url), ...externalPublicImageSourceCandidates(image.dataUrl)]);
+    if (directUrls.length) return directUrls;
+
+    const dataUrl = (await imageToDataUrl(image)).trim();
+    if (!dataUrl || !/^data:image\//i.test(dataUrl)) return [];
+    const publishedUrl = await publishReferenceImage(dataUrl);
+    return externalPublicImageSourceCandidates(publishedUrl);
+}
+
+function resolveGlobalAiOpcMediaReferenceSources(media: { url?: string }) {
+    return externalPublicImageSourceCandidates(media.url);
 }
 
 function compatibleImageSourceCandidates(value?: string) {
@@ -408,6 +688,45 @@ function compatibleImageSourceCandidates(value?: string) {
     return [];
 }
 
+function externalPublicImageSourceCandidates(value?: string) {
+    const url = (value || "").trim();
+    if (!url || /^data:image\//i.test(url)) return [];
+    if (isExternalPublicMediaUrl(url)) return [url];
+    try {
+        const origin = typeof window === "undefined" ? "" : window.location.origin;
+        if (!origin) return [];
+        const absolute = new URL(url, origin);
+        const proxiedUrl = absolute.searchParams.get("url") || "";
+        if ((absolute.pathname === "/api/media-proxy" || /^\/api\/ai\/system\/[^/]+\/_media$/.test(absolute.pathname)) && isExternalPublicMediaUrl(proxiedUrl)) return [proxiedUrl];
+        if (url.startsWith("/api/generation-log-assets/") && isExternalPublicMediaUrl(absolute.toString())) return [absolute.toString()];
+    } catch {
+        return [];
+    }
+    return [];
+}
+
+function isQingyanVideoConfig(config: AiConfig, model: string) {
+    if (modelOptionName(model).toLowerCase() === "video-v1") return true;
+    try {
+        return new URL(config.baseUrl, typeof window === "undefined" ? "http://localhost" : window.location.origin).hostname.toLowerCase() === "api2.qingyanzhiying.top";
+    } catch {
+        return config.baseUrl.toLowerCase().includes("api2.qingyanzhiying.top");
+    }
+}
+
+async function publishReferenceImage(dataUrl: string) {
+    const response = await fetch("/api/reference-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "image", dataUrl }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { url?: unknown; error?: unknown };
+    if (!response.ok) throw new Error(typeof payload.error === "string" ? payload.error : "参考图临时上传失败");
+    const url = typeof payload.url === "string" ? payload.url.trim() : "";
+    if (!url) throw new Error("参考图临时上传没有返回可用地址");
+    return url;
+}
+
 function uniqueStrings(items: string[]) {
     return Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
 }
@@ -417,6 +736,11 @@ function normalizeCompatibleVideoDuration(value: string) {
     if (seconds <= 5) return 5;
     if (seconds <= 10) return 10;
     return 15;
+}
+
+function normalizeGlobalAiOpcVideoDuration(value: string) {
+    const seconds = Math.floor(Number(value) || 5);
+    return Math.max(4, Math.min(15, seconds));
 }
 
 function normalizeCompatibleVideoRatio(value: string) {
@@ -450,6 +774,58 @@ function shouldRetryCompatibleVideoPayload(error: unknown, message: string) {
     if (status && status >= 500) return /task[_ -]?id is empty|invalid_response|deserialize|unmarshal|invalid type/i.test(message);
     if (status !== 400 && status !== 422) return false;
     return /duration|seconds|duplicate field|unmarshal|invalid type|resolution|quality|size|field|image|images|image_url|input_image|ref_assets|text-to-video|image-to-video|reference image|input image|required image/i.test(message);
+}
+
+function readConfiguredMediaUrl(config: AiConfig, record: Record<string, unknown>) {
+    const configured = readConfiguredStringValue(record, config.advancedConfig?.resultField, "media");
+    return configured && isLikelyVideoUrl(configured) ? configured : "";
+}
+
+function readConfiguredTaskStatus(config: AiConfig, record: Record<string, unknown>) {
+    return readConfiguredStringValue(record, config.advancedConfig?.statusField, "status").toLowerCase();
+}
+
+function readConfiguredStringValue(record: Record<string, unknown>, fieldConfig: string | undefined, mode: "media" | "status") {
+    for (const path of configuredFieldPaths(fieldConfig)) {
+        const value = valueAtConfiguredPath(record, path);
+        const text = configuredValueText(value, mode);
+        if (text) return text;
+    }
+    return "";
+}
+
+function configuredFieldPaths(value: string | undefined) {
+    return (value || "")
+        .split(/\r?\n|,|，|;|；|\s+\|\s+|\s+\/\s+/)
+        .map((item) => item.trim())
+        .filter((item) => item && !item.startsWith("/") && !item.includes(":task_id") && !item.includes("{task_id}"));
+}
+
+function valueAtConfiguredPath(value: unknown, path: string): unknown {
+    const parts = path
+        .replace(/\[(\d+)\]/g, ".$1")
+        .split(".")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    let current = value;
+    for (const part of parts) {
+        if (Array.isArray(current)) {
+            const index = Number(part);
+            current = Number.isInteger(index) ? current[index] : undefined;
+            continue;
+        }
+        if (!isRecord(current)) return undefined;
+        current = current[part] ?? current[Object.keys(current).find((key) => key.toLowerCase() === part.toLowerCase()) || ""];
+    }
+    return current;
+}
+
+function configuredValueText(value: unknown, mode: "media" | "status"): string {
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (mode === "media") return findMediaUrl(value);
+    if (isRecord(value)) return findStringByKeys(value, TASK_STATUS_KEYS);
+    return "";
 }
 
 function readTaskId(record: Record<string, unknown>) {
@@ -517,7 +893,7 @@ function resolveVideoMediaUrl(config: AiConfig, value: string, baseUrl: string):
     if (!config.baseUrl.startsWith("/api/ai/system/")) return { url: remoteUrl, remoteUrl: remoteVideoSourceUrl(remoteUrl) };
     const proxyBase = config.baseUrl.trim().replace(/\/+$/, "");
     return {
-        url: `${proxyBase}/_media?url=${encodeURIComponent(value)}`,
+        url: `${proxyBase}/_media?url=${encodeURIComponent(remoteUrl)}`,
         remoteUrl: remoteVideoSourceUrl(remoteUrl),
     };
 }
@@ -737,6 +1113,16 @@ async function assertVideoBlob(blob: Blob) {
 
 function isPublicMediaUrl(value: string) {
     return /^https?:\/\//i.test(value || "");
+}
+
+function isExternalPublicMediaUrl(value: string) {
+    if (!isPublicMediaUrl(value)) return false;
+    try {
+        const hostname = new URL(value).hostname.toLowerCase();
+        return hostname !== "localhost" && hostname !== "127.0.0.1" && hostname !== "::1";
+    } catch {
+        return false;
+    }
 }
 
 function delay(ms: number, signal?: AbortSignal) {

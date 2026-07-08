@@ -14,6 +14,7 @@ type RouteContext = {
     params: Promise<{ channelId: string; path: string[] }>;
 };
 type PointsRequest = { model: string; amount: number; usageKind: PointUsageKind };
+type ProxyRequestBody = { body?: BodyInit; pointsPayload?: ArrayBuffer | Record<string, unknown> };
 
 export async function GET(request: Request, context: RouteContext) {
     return proxySystemRequest(request, context);
@@ -53,14 +54,15 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
     const target = targetUrl(channel.baseUrl, channel.apiFormat, path, new URL(request.url).search);
     const headers = new Headers();
     const contentType = request.headers.get("content-type");
+    const isMultipart = Boolean(contentType?.toLowerCase().includes("multipart/form-data"));
     const accept = request.headers.get("accept");
-    if (contentType) headers.set("content-type", contentType);
+    if (contentType && !isMultipart) headers.set("content-type", contentType);
     if (accept) headers.set("accept", accept);
     if (channel.apiFormat === "gemini") headers.set("x-goog-api-key", channel.apiKey);
     else headers.set("authorization", `Bearer ${channel.apiKey}`);
 
-    const body = request.method === "GET" || request.method === "HEAD" ? undefined : await request.arrayBuffer();
-    const pointsRequest = classifyPointsRequest(request.method, channel.apiFormat, path, contentType, body, settings.generationPointMultipliers);
+    const requestBody = await readProxyRequestBody(request, isMultipart);
+    const pointsRequest = classifyPointsRequest(request.method, channel.apiFormat, path, contentType, requestBody.pointsPayload, settings.generationPointMultipliers);
     let pointsResult: Awaited<ReturnType<typeof consumeUserPoints>> | null = null;
     let refundedPointsRemaining: number | null = null;
     let pointsSettled = false;
@@ -85,7 +87,7 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
         upstream = await fetch(target, {
             method: request.method,
             headers,
-            body,
+            body: requestBody.body,
             cache: "no-store",
             signal: request.signal,
         });
@@ -194,7 +196,39 @@ function isBlockedProxyHost(hostname: string) {
     return a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || a === 0;
 }
 
-function classifyPointsRequest(method: string, apiFormat: ApiCallFormat, path: string[], contentType: string | null, body?: ArrayBuffer, multipliers?: GenerationPointMultipliers): PointsRequest | null {
+async function readProxyRequestBody(request: Request, isMultipart: boolean): Promise<ProxyRequestBody> {
+    if (request.method === "GET" || request.method === "HEAD") return {};
+    if (!isMultipart) {
+        const body = await request.arrayBuffer();
+        return { body, pointsPayload: body };
+    }
+
+    const formData = await request.formData();
+    return { body: await cloneFormData(formData), pointsPayload: formDataFields(formData) };
+}
+
+function formDataFields(formData: FormData): Record<string, string> {
+    const fields: Record<string, string> = {};
+    for (const key of ["model", "n", "quality", "resolution_name", "resolution", "vquality", "seconds", "duration"]) {
+        const value = formData.get(key);
+        if (typeof value === "string" && value.trim()) fields[key] = value.trim();
+    }
+    return fields;
+}
+
+async function cloneFormData(formData: FormData) {
+    const next = new FormData();
+    for (const [key, value] of formData.entries()) {
+        if (typeof value === "string") {
+            next.append(key, value);
+            continue;
+        }
+        next.append(key, new Blob([await value.arrayBuffer()], { type: value.type || "application/octet-stream" }), value.name || "file");
+    }
+    return next;
+}
+
+function classifyPointsRequest(method: string, apiFormat: ApiCallFormat, path: string[], contentType: string | null, body?: ArrayBuffer | Record<string, unknown>, multipliers?: GenerationPointMultipliers): PointsRequest | null {
     if (method.toUpperCase() !== "POST") return null;
     const cleanPath = path[0] === "v1" || path[0] === "v1beta" ? path.slice(1) : path;
     const routePath = `/${cleanPath.join("/")}`.toLowerCase();
@@ -206,7 +240,9 @@ function classifyPointsRequest(method: string, apiFormat: ApiCallFormat, path: s
         return { model, amount: readRequestCount(payload) * imageQualityMultiplier(payload, multipliers), usageKind: "image" };
     }
     if (routePath === "/audio/speech") return { model, amount: 1, usageKind: "audio" };
-    if (routePath === "/videos" || routePath === "/video/generations" || routePath === "/videos/generations" || routePath === "/contents/generations/tasks") return { model, amount: videoParameterMultiplier(payload, multipliers), usageKind: "video" };
+    if (routePath === "/videos" || routePath === "/video/generations" || routePath === "/videos/generations" || routePath === "/videos/videos" || routePath === "/contents/generations/tasks") {
+        return { model, amount: videoParameterMultiplier(payload, multipliers), usageKind: "video" };
+    }
     if (routePath === "/responses") {
         const isImage = hasResponsesImageGenerationTool(payload);
         return { model, amount: isImage ? imageQualityMultiplier(payload, multipliers) : 1, usageKind: isImage ? "image" : "text" };
@@ -287,8 +323,9 @@ function hasResponsesImageGenerationTool(payload: Record<string, unknown>) {
     return Array.isArray(tools) && tools.some((tool) => Boolean(tool && typeof tool === "object" && String((tool as Record<string, unknown>).type || "").toLowerCase() === "image_generation"));
 }
 
-function readRequestBody(contentType: string | null, body?: ArrayBuffer): Record<string, unknown> {
+function readRequestBody(contentType: string | null, body?: ArrayBuffer | Record<string, unknown>): Record<string, unknown> {
     if (!body) return {};
+    if (!(body instanceof ArrayBuffer)) return body;
     const text = new TextDecoder().decode(body);
     if (!contentType?.toLowerCase().includes("application/json")) return readMultipartFields(text);
     try {

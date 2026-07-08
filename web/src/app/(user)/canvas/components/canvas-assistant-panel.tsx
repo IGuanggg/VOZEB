@@ -536,8 +536,9 @@ export function CanvasAssistantPanel({
     };
 
     const addImagesToCanvas = (files: FileList | File[] | null) => {
-        const file = Array.from(files || []).find((item) => item.type.startsWith("image/"));
-        if (file) onPasteImage(file);
+        Array.from(files || [])
+            .filter((item) => item.type.startsWith("image/"))
+            .forEach((file) => onPasteImage(file));
     };
 
     const startResize = () => {

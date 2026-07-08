@@ -8,6 +8,24 @@ import { nanoid } from "nanoid";
 import { appStorageKey, legacyAppStorageKey, migrateLocalStorageKey } from "@/lib/storage-keys";
 
 export type ApiCallFormat = "openai" | "gemini";
+export type SystemChannelProtocol = "auto" | "openai" | "sub2api" | "globalaiopc" | "seedance" | "compatible";
+
+export type SystemChannelAdvancedConfig = {
+    protocol: SystemChannelProtocol;
+    textModel: string;
+    imageModel: string;
+    videoModel: string;
+    createPath: string;
+    queryPath: string;
+    requestTemplate: string;
+    resultField: string;
+    statusField: string;
+    durationRange: string;
+    referenceRule: string;
+    supportsReferenceImage: boolean;
+    supportsReferenceVideo: boolean;
+    supportsReferenceAudio: boolean;
+};
 
 export type ModelChannel = {
     id: string;
@@ -16,6 +34,7 @@ export type ModelChannel = {
     apiKey: string;
     apiFormat: ApiCallFormat;
     models: string[];
+    advancedConfig?: SystemChannelAdvancedConfig;
 };
 
 export type AiConfig = {
@@ -51,6 +70,7 @@ export type AiConfig = {
     modelPointCosts: Record<string, number>;
     generationPointMultipliers: GenerationPointMultipliers;
     generationConcurrency: GenerationConcurrencySettings;
+    advancedConfig?: SystemChannelAdvancedConfig;
 };
 
 export type GenerationPointMultipliers = {
@@ -228,6 +248,7 @@ export function applyPublicSystemSettings(config: AiConfig, settings?: PublicSys
             apiKey: "system",
             apiFormat: channel.apiFormat === "gemini" ? ("gemini" as const) : ("openai" as const),
             models: uniqueRawModels(channel.models || []),
+            ...(channel.advancedConfig ? { advancedConfig: channel.advancedConfig } : {}),
         }));
     const models = modelOptionsFromChannels(channels);
     const imageModels = filterModelsByCapability(models, "image");
@@ -432,6 +453,7 @@ export function createModelChannel(channel?: Partial<ModelChannel>): ModelChanne
         apiKey: channel?.apiKey || "",
         apiFormat: channel?.apiFormat === "gemini" ? "gemini" : "openai",
         models: uniqueRawModels(channel?.models || []),
+        ...(channel?.advancedConfig ? { advancedConfig: channel.advancedConfig } : {}),
     };
 }
 
@@ -510,6 +532,7 @@ export function resolveModelRequestConfig(config: AiConfig, value: string) {
         baseUrl: channel.baseUrl,
         apiKey: channel.apiKey,
         apiFormat: channel.apiFormat,
+        ...(channel.advancedConfig ? { advancedConfig: channel.advancedConfig } : {}),
         systemPrompt: "",
     };
 }

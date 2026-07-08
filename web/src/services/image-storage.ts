@@ -68,10 +68,10 @@ export async function setImageBlob(storageKey: string, blob: Blob) {
     return url;
 }
 
-export async function imageToDataUrl(image: { url?: string; dataUrl?: string; storageKey?: string }) {
+export async function imageToDataUrl(image: { url?: string; dataUrl?: string; remoteUrl?: string; serverUrl?: string; storageKey?: string }) {
     const stored = image.storageKey ? await resolveStoredImageDataUrl(image.storageKey, "") : "";
     if (stored) return stored;
-    const candidates = uniqueImageSources([image.dataUrl, image.url]);
+    const candidates = uniqueImageSources([image.dataUrl, image.url, image.remoteUrl, image.serverUrl]);
     let fallback = "";
     for (const url of candidates) {
         if (!url || url.startsWith("data:")) return url;

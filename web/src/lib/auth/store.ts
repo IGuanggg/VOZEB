@@ -8,6 +8,24 @@ import { hashPassword, verifyPassword } from "./password";
 export type UserRole = "admin" | "user";
 export type UserStatus = "active" | "disabled";
 export type ApiCallFormat = "openai" | "gemini";
+export type SystemChannelProtocol = "auto" | "openai" | "sub2api" | "globalaiopc" | "seedance" | "compatible";
+
+export type SystemChannelAdvancedConfig = {
+    protocol: SystemChannelProtocol;
+    textModel: string;
+    imageModel: string;
+    videoModel: string;
+    createPath: string;
+    queryPath: string;
+    requestTemplate: string;
+    resultField: string;
+    statusField: string;
+    durationRange: string;
+    referenceRule: string;
+    supportsReferenceImage: boolean;
+    supportsReferenceVideo: boolean;
+    supportsReferenceAudio: boolean;
+};
 
 type LegacyUserQuota = {
     imageDaily: number;
@@ -27,6 +45,7 @@ export type SystemModelChannel = {
     apiFormat: ApiCallFormat;
     models: string[];
     enabled: boolean;
+    advancedConfig?: SystemChannelAdvancedConfig;
 };
 
 export type SystemDefaultModels = {
@@ -1342,7 +1361,39 @@ function normalizeSystemChannel(channel: Partial<SystemModelChannel>): SystemMod
         apiFormat: channel.apiFormat === "gemini" ? "gemini" : "openai",
         models: Array.from(new Set((channel.models || []).map((model) => model.trim()).filter(Boolean))),
         enabled: channel.enabled !== false,
+        advancedConfig: normalizeSystemChannelAdvancedConfig(channel.advancedConfig),
     };
+}
+
+function normalizeSystemChannelAdvancedConfig(config: Partial<SystemChannelAdvancedConfig> | undefined): SystemChannelAdvancedConfig | undefined {
+    if (!config || typeof config !== "object") return undefined;
+    const protocol = ["auto", "openai", "sub2api", "globalaiopc", "seedance", "compatible"].includes(config.protocol || "") ? config.protocol! : "auto";
+    return {
+        protocol,
+        textModel: textOrEmpty(config.textModel, 120),
+        imageModel: textOrEmpty(config.imageModel, 120),
+        videoModel: textOrEmpty(config.videoModel, 120),
+        createPath: normalizeApiPath(config.createPath),
+        queryPath: normalizeApiPath(config.queryPath),
+        requestTemplate: textOrEmpty(config.requestTemplate, 4000),
+        resultField: textOrEmpty(config.resultField, 500),
+        statusField: textOrEmpty(config.statusField, 500),
+        durationRange: textOrEmpty(config.durationRange, 120),
+        referenceRule: textOrEmpty(config.referenceRule, 1000),
+        supportsReferenceImage: Boolean(config.supportsReferenceImage),
+        supportsReferenceVideo: Boolean(config.supportsReferenceVideo),
+        supportsReferenceAudio: Boolean(config.supportsReferenceAudio),
+    };
+}
+
+function normalizeApiPath(value: unknown) {
+    const path = textOrEmpty(value, 300);
+    if (!path) return "";
+    return path.startsWith("/") ? path : `/${path}`;
+}
+
+function textOrEmpty(value: unknown, maxLength: number) {
+    return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
 function normalizePoints(value: unknown, fallback: number) {

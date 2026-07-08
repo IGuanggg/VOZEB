@@ -91,3 +91,10 @@
 - 当前画布项目和“我的素材”主要保存在浏览器本地，不要在文档中误写成已支持云同步。
 - 当前 AI API Key 存在浏览器本地，并由前端直接请求 OpenAI 兼容接口；涉及安全说明时要写清楚。
 - Docker 静态资源路径目前仍是待办项，文档中不要过度承诺生产部署已经完全验证。
+
+## Mandatory Testing
+
+- After every code change, run the relevant automated checks and browser regression flow before reporting completion.
+- Cover desktop and mobile layouts, canvas interactions including node actions and linking, image workbench generation/history/reference-image flows, video workbench text-to-video and image-to-video flows, all visible buttons touched by the change, and configured API capability checks for text/image/video.
+- For live upstream API tests that include Chinese prompts, do not put Chinese literals directly in PowerShell commands. Use the app flow, Node/fetch with UTF-8 text loaded from a file, or base64/Unicode reconstruction before sending so the upstream prompt is not submitted as question marks.
+- If the full live API/browser matrix cannot be completed, report the exact gap and why.

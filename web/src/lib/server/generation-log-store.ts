@@ -165,7 +165,7 @@ export async function recordGenerationLog(input: GenerationLogInput) {
             status: input.status,
             title: normalizeText(input.title, existing?.title || input.prompt || "未命名记录", 80),
             prompt: normalizeText(input.prompt, existing?.prompt || "", 5000),
-            model: normalizeText(input.model, existing?.model || "", 160),
+            model: normalizeModelName(input.model || existing?.model || ""),
             summary: normalizeText(input.summary, existing?.summary || defaultSummary(input.kind, input.status), 160),
             durationMs: normalizeNonNegativeNumber(input.durationMs, existing?.durationMs || 0),
             count: normalizePositiveInteger(input.count, existing?.count || 1),
@@ -543,7 +543,7 @@ function normalizeStoredLog(log: Partial<StoredGenerationLog>): StoredGeneration
         status,
         title: normalizeText(log.title, "未命名记录", 80),
         prompt: normalizeText(log.prompt, "", 5000),
-        model: normalizeText(log.model, "", 160),
+        model: normalizeModelName(log.model),
         summary: normalizeText(log.summary, defaultSummary(kind, status), 160),
         durationMs: normalizeNonNegativeNumber(log.durationMs, 0),
         count: normalizePositiveInteger(log.count, 1),
@@ -597,6 +597,17 @@ function defaultSummary(kind: GenerationLogKind, status: GenerationLogStatus) {
 function normalizeText(value: unknown, fallback: string, maxLength: number) {
     const text = typeof value === "string" ? value.trim() : "";
     return (text || fallback).slice(0, maxLength);
+}
+
+function normalizeModelName(value: unknown) {
+    const text = normalizeText(value, "", 160);
+    const separatorIndex = text.indexOf("::");
+    return separatorIndex >= 0
+        ? text
+              .slice(separatorIndex + 2)
+              .trim()
+              .slice(0, 160)
+        : text;
 }
 
 function normalizeOptionalText(value: unknown, fallback: string | undefined, maxLength: number) {

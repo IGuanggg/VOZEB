@@ -1,55 +1,43 @@
-# VOZEB 文档索引
+﻿# VOZEB 鏂囨。绱㈠紩
 
-当前版本：`v0.9.8`。VOZEB 是基于原创开源画布项目继续开发的二开版本，当前仓库为 `csyqlz/vozeb`。
+褰撳墠鐗堟湰锛歚v0.9.9`銆俈OZEB 鏄熀浜庡師鍒涘紑婧愮敾甯冮」鐩户缁紑鍙戠殑浜屽紑鐗堟湰锛屽綋鍓嶄粨搴撲负 `csyqlz/vozeb`銆?
+## 椤圭洰浠嬬粛
 
-## 项目介绍
+- [蹇€熷紑濮媇(/docs/overview/quick-start)
+- [鍔熻兘浠嬬粛](/docs/overview/features)
+- [Codex App 鎻掍欢](/docs/overview/codex-app-plugin)
+- [Render 閮ㄧ讲](/docs/overview/render)
+- [Docker 閮ㄧ讲](/docs/overview/docker)
+- [绗笁鏂?GitHub 鎻愮ず璇嶄粨搴揮(/docs/overview/third-party-prompt-repositories)
 
-- [快速开始](/docs/overview/quick-start)
-- [功能介绍](/docs/overview/features)
-- [Codex App 插件](/docs/overview/codex-app-plugin)
-- [Render 部署](/docs/overview/render)
-- [Docker 部署](/docs/overview/docker)
-- [第三方 GitHub 提示词仓库](/docs/overview/third-party-prompt-repositories)
+## 鎿嶄綔鎵嬪唽
 
-## 操作手册
+- [鐢诲竷鑺傜偣鎿嶄綔鎵嬪唽](/docs/canvas/canvas-node-manual)
+- [鐢诲竷蹇嵎閿甝(/docs/canvas/canvas-shortcuts)
 
-- [画布节点操作手册](/docs/canvas/canvas-node-manual)
-- [画布快捷键](/docs/canvas/canvas-shortcuts)
+## 寮€鍙戜笌鏁版嵁
 
-## 开发与数据
+- [鏈湴寮€鍙慮(/docs/backend/local-development)
+- [鐢诲竷鏁版嵁缁撴瀯](/docs/backend/canvas-data-structure)
 
-- [本地开发](/docs/backend/local-development)
-- [画布数据结构](/docs/backend/canvas-data-structure)
+## 鍟嗗姟鍚堜綔
 
-## 商务合作
+- [寮€婧愬崗璁甝(/docs/business/license)
+- [璐＄尞鑰呭崗璁甝(/docs/business/cla)
+- [鍟嗗姟鍚堜綔](/docs/business/business)
 
-- [开源协议](/docs/business/license)
-- [贡献者协议](/docs/business/cla)
-- [商务合作](/docs/business/business)
+## 鏀寔涓庡畨鍏?
+- [婕忔礊鎻愪氦](/docs/support/security)
+- [鎵撹祻鏀寔](/docs/support/donate)
+- [骞垮憡璧炲姪](/docs/support/sponsor)
 
-## 支持与安全
+## 椤圭洰杩涘害
 
-- [漏洞提交](/docs/support/security)
-- [打赏支持](/docs/support/donate)
-- [广告赞助](/docs/support/sponsor)
-
-## 项目进度
-
-- [更新日志](/docs/progress/changelog)
-- [待测试](/docs/progress/pending-test)
-- [发布检查清单](/docs/progress/release-checklist)
+- [鏇存柊鏃ュ織](/docs/progress/changelog)
+- [寰呮祴璇昡(/docs/progress/pending-test)
+- [鍙戝竷妫€鏌ユ竻鍗昡(/docs/progress/release-checklist)
 - [TODO](/docs/progress/todo)
 
-## 说明
+## 璇存槑
 
-- 当前画布项目和“我的素材”主要保存在浏览器本地，WebDAV 由管理员后台统一接入，用户端不展示真实连接信息。
-- HTTP 直连和 HTTPS 反向代理会自动使用对应的登录 Cookie 安全模式；特殊代理可用 `VOZEB_COOKIE_SECURE` 强制指定。
-- 画布图片、视频和文本生成会保存任务状态，图片反推提示词与文本生成刷新后可继续轮询结果。
-- 管理员后台支持账号、邮箱注册、SMTP 邮箱服务、积分、CDK、网站公告、模型渠道和公共提示词库管理。
-- CDK 支持随机生成、复制、TXT 导出、兑换明细查看、批量删除；用户可在前端积分面板兑换，兑换记录会写入积分流水。
-- 管理员后台网站设置支持首页品牌、Logo、SEO、社交媒体、友情链接和首页提示词展示配置；首页提示词展示可随机读取公共提示词库或由后台自定义。
-- 管理员后台概览支持导出和导入服务端用户数据库、公共提示词与生成日志备份，导入前会保留当前数据快照。
-- 管理员后台支持生成日志，能按用户、日期、类型、入口和状态查看图片/视频生成记录、提示词、结果预览、API 远程地址和服务器兜底地址，并支持勾选删除。
-- 公共提示词库会采集原作者接入的远程提示词源，只保留可访问的远程图片 URL，不写入浏览器本地素材存储；后台手机端提示词列表使用卡片布局，避免表格横向溢出。
-- 生图和视频创作台支持生成记录标题重命名，右侧生成结果可选择删除；生图结果可清理失效图片，手机端记录抽屉会完整滚动展示。
-- 图片、视频生成结果按“浏览器本地缓存 -> API 远程结果地址 -> 服务器副本”三层兜底；后台可分别控制图片/视频服务器兜底和下载保存到服务器，服务器副本保存在 `.data/generation-assets`。
+- 褰撳墠鐢诲竷椤圭洰鍜屸€滄垜鐨勭礌鏉愨€濅富瑕佷繚瀛樺湪娴忚鍣ㄦ湰鍦帮紝WebDAV 鐢辩鐞嗗憳鍚庡彴缁熶竴鎺ュ叆锛岀敤鎴风涓嶅睍绀虹湡瀹炶繛鎺ヤ俊鎭€?- HTTP 鐩磋繛鍜?HTTPS 鍙嶅悜浠ｇ悊浼氳嚜鍔ㄤ娇鐢ㄥ搴旂殑鐧诲綍 Cookie 瀹夊叏妯″紡锛涚壒娈婁唬鐞嗗彲鐢?`VOZEB_COOKIE_SECURE` 寮哄埗鎸囧畾銆?- 鐢诲竷鍥剧墖銆佽棰戝拰鏂囨湰鐢熸垚浼氫繚瀛樹换鍔＄姸鎬侊紝鍥剧墖鍙嶆帹鎻愮ず璇嶄笌鏂囨湰鐢熸垚鍒锋柊鍚庡彲缁х画杞缁撴灉銆?- 绠＄悊鍛樺悗鍙版敮鎸佽处鍙枫€侀偖绠辨敞鍐屻€丼MTP 閭鏈嶅姟銆佺Н鍒嗐€丆DK銆佺綉绔欏叕鍛娿€佹ā鍨嬫笭閬撳拰鍏叡鎻愮ず璇嶅簱绠＄悊銆?- CDK 鏀寔闅忔満鐢熸垚銆佸鍒躲€乀XT 瀵煎嚭銆佸厬鎹㈡槑缁嗘煡鐪嬨€佹壒閲忓垹闄わ紱鐢ㄦ埛鍙湪鍓嶇绉垎闈㈡澘鍏戞崲锛屽厬鎹㈣褰曚細鍐欏叆绉垎娴佹按銆?- 绠＄悊鍛樺悗鍙扮綉绔欒缃敮鎸侀椤靛搧鐗屻€丩ogo銆丼EO銆佺ぞ浜ゅ獟浣撱€佸弸鎯呴摼鎺ュ拰棣栭〉鎻愮ず璇嶅睍绀洪厤缃紱棣栭〉鎻愮ず璇嶅睍绀哄彲闅忔満璇诲彇鍏叡鎻愮ず璇嶅簱鎴栫敱鍚庡彴鑷畾涔夈€?- 绠＄悊鍛樺悗鍙版瑙堟敮鎸佸鍑哄拰瀵煎叆鏈嶅姟绔敤鎴锋暟鎹簱銆佸叕鍏辨彁绀鸿瘝涓庣敓鎴愭棩蹇楀浠斤紝瀵煎叆鍓嶄細淇濈暀褰撳墠鏁版嵁蹇収銆?- 绠＄悊鍛樺悗鍙版敮鎸佺敓鎴愭棩蹇楋紝鑳芥寜鐢ㄦ埛銆佹棩鏈熴€佺被鍨嬨€佸叆鍙ｅ拰鐘舵€佹煡鐪嬪浘鐗?瑙嗛鐢熸垚璁板綍銆佹彁绀鸿瘝銆佺粨鏋滈瑙堛€丄PI 杩滅▼鍦板潃鍜屾湇鍔″櫒鍏滃簳鍦板潃锛屽苟鏀寔鍕鹃€夊垹闄ゃ€?- 鍏叡鎻愮ず璇嶅簱浼氶噰闆嗗師浣滆€呮帴鍏ョ殑杩滅▼鎻愮ず璇嶆簮锛屽彧淇濈暀鍙闂殑杩滅▼鍥剧墖 URL锛屼笉鍐欏叆娴忚鍣ㄦ湰鍦扮礌鏉愬瓨鍌紱鍚庡彴鎵嬫満绔彁绀鸿瘝鍒楄〃浣跨敤鍗＄墖甯冨眬锛岄伩鍏嶈〃鏍兼í鍚戞孩鍑恒€?- 鐢熷浘鍜岃棰戝垱浣滃彴鏀寔鐢熸垚璁板綍鏍囬閲嶅懡鍚嶏紝鍙充晶鐢熸垚缁撴灉鍙€夋嫨鍒犻櫎锛涚敓鍥剧粨鏋滃彲娓呯悊澶辨晥鍥剧墖锛屾墜鏈虹璁板綍鎶藉眽浼氬畬鏁存粴鍔ㄥ睍绀恒€?- 鍥剧墖銆佽棰戠敓鎴愮粨鏋滄寜鈥滄祻瑙堝櫒鏈湴缂撳瓨 -> API 杩滅▼缁撴灉鍦板潃 -> 鏈嶅姟鍣ㄥ壇鏈€濅笁灞傚厹搴曪紱鍚庡彴鍙垎鍒帶鍒跺浘鐗?瑙嗛鏈嶅姟鍣ㄥ厹搴曞拰涓嬭浇淇濆瓨鍒版湇鍔″櫒锛屾湇鍔″櫒鍓湰淇濆瓨鍦?`.data/generation-assets`銆?

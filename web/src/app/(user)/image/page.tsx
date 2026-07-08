@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, BookOpen, Check, CheckSquare, ClipboardPaste, Download, FolderPlus, History, ImagePlus, LoaderCircle, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Image, Input, Modal, Tag, Tooltip, Typography } from "antd";
 import localforage from "localforage";
 import { saveAs } from "file-saver";
@@ -13,7 +13,9 @@ import { formatCreditAmount, requestCreditCost } from "@/constant/credits";
 import type { InsertAssetPayload } from "@/app/(user)/canvas/components/asset-picker-modal";
 import { browserReadableMediaUrl } from "@/lib/browser-media-url";
 import { canvasThemes } from "@/lib/canvas-theme";
+import { droppedFiles, leftDropTarget, preventFileDragEvent } from "@/lib/file-drop";
 import { imageReferenceLabel } from "@/lib/image-reference-prompt";
+import { cn } from "@/lib/utils";
 import { modelOptionLabel, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
@@ -120,6 +122,7 @@ export default function ImagePage() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [promptDialogOpen, setPromptDialogOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+    const [isReferenceDragActive, setIsReferenceDragActive] = useState(false);
     const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
     const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
     const [missingResultIds, setMissingResultIds] = useState<string[]>([]);
@@ -199,7 +202,7 @@ export default function ImagePage() {
         };
     }, []);
 
-    const addReferences = async (files?: FileList | null) => {
+    const addReferences = async (files?: FileList | File[] | null) => {
         const imageFiles = Array.from(files || []).filter((file) => file.type.startsWith("image/"));
         const nextReferences = await Promise.all(
             imageFiles.map(async (file) => {
@@ -208,6 +211,24 @@ export default function ImagePage() {
             }),
         );
         setReferences((value) => [...value, ...nextReferences]);
+    };
+
+    const handleReferenceDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event)) return;
+        setIsReferenceDragActive(true);
+    };
+
+    const handleReferenceDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event) || !leftDropTarget(event)) return;
+        setIsReferenceDragActive(false);
+    };
+
+    const handleReferenceDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event)) return;
+        setIsReferenceDragActive(false);
+        const files = droppedFiles(event, (file) => file.type.startsWith("image/"));
+        if (!files.length) return;
+        void addReferences(files);
     };
 
     const addReferencesFromClipboard = async () => {
@@ -461,7 +482,19 @@ export default function ImagePage() {
             return;
         }
         const stored = await uploadImage(image.dataUrl);
-        setReferences((value) => [...value, { id: nanoid(), name: `result-${index + 1}.png`, type: stored.mimeType, dataUrl: stored.url, storageKey: stored.storageKey, url: image.remoteUrl || image.serverUrl }]);
+        setReferences((value) => [
+            ...value,
+            {
+                id: nanoid(),
+                name: `result-${index + 1}.png`,
+                type: stored.mimeType,
+                dataUrl: stored.url,
+                storageKey: stored.storageKey,
+                url: image.remoteUrl || image.serverUrl,
+                remoteUrl: image.remoteUrl,
+                serverUrl: image.serverUrl,
+            },
+        ]);
         message.success("已加入参考图");
     };
 
@@ -723,7 +756,14 @@ export default function ImagePage() {
                                     </div>
                                 </div>
                                 <div
-                                    className="hover-scrollbar hover-scrollbar-hint flex min-h-24 w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 pb-3 overscroll-x-contain dark:border-stone-700"
+                                    className={cn(
+                                        "hover-scrollbar hover-scrollbar-hint flex min-h-24 w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 pb-3 overscroll-x-contain transition dark:border-stone-700",
+                                        isReferenceDragActive && "border-cyan-400 bg-cyan-50/60 ring-1 ring-cyan-200 dark:border-cyan-400 dark:bg-cyan-500/10 dark:ring-cyan-400/25",
+                                    )}
+                                    onDragEnter={handleReferenceDragOver}
+                                    onDragOver={handleReferenceDragOver}
+                                    onDragLeave={handleReferenceDragLeave}
+                                    onDrop={handleReferenceDrop}
                                     onWheel={(event) => {
                                         if (event.currentTarget.scrollWidth <= event.currentTarget.clientWidth) return;
                                         event.preventDefault();

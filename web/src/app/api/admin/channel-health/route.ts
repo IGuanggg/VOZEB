@@ -10,6 +10,7 @@ export const dynamic = "force-dynamic";
 configureServerProxyDispatcher();
 
 type HealthKind = "text" | "image" | "video";
+type HealthProtocol = "auto" | "openai" | "sub2api" | "globalaiopc" | "seedance" | "compatible";
 
 type HealthPayload = {
     baseUrl?: unknown;
@@ -23,6 +24,19 @@ type HealthResult = {
     kind: HealthKind;
     model: string;
     status: number;
+    protocolKey?: HealthProtocol;
+    protocol?: string;
+    referenceHint?: string;
+    createPath?: string;
+    queryPath?: string;
+    requestTemplate?: string;
+    resultField?: string;
+    statusField?: string;
+    durationRange?: string;
+    referenceRule?: string;
+    supportsReferenceImage?: boolean;
+    supportsReferenceVideo?: boolean;
+    supportsReferenceAudio?: boolean;
     pointsCost?: number;
     pointsRemaining?: number;
     taskId?: string;
@@ -32,6 +46,9 @@ type HealthResult = {
 
 const HEALTH_COOLDOWN_MS = 20_000;
 const VIDEO_HEALTH_REFERENCE_IMAGE = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=";
+const GLOBAL_AIOPC_VIDEO_CREATE_PATH = "/videos/videos";
+const SEEDANCE_VIDEO_CREATE_PATH = "/contents/generations/tasks";
+const VIDEO_HEALTH_PATHS = [GLOBAL_AIOPC_VIDEO_CREATE_PATH, "/videos", "/video/generations", "/videos/generations", SEEDANCE_VIDEO_CREATE_PATH];
 const globalCooldownStore = globalThis as typeof globalThis & { __vozebChannelHealthCooldowns?: Map<string, number> };
 const healthCooldowns = (globalCooldownStore.__vozebChannelHealthCooldowns ??= new Map<string, number>());
 
@@ -70,7 +87,18 @@ async function testText(baseUrl: string, apiKey: string, model: string): Promise
     });
     const payload = await readPayload(response);
     if (!response.ok) return failed("text", model, response.status, payload);
-    return { ok: true, kind: "text", model, status: response.status, ...pointsInfo(response.headers) };
+    return {
+        ok: true,
+        kind: "text",
+        model,
+        status: response.status,
+        protocolKey: "openai",
+        protocol: "OpenAI 文本兼容",
+        createPath: "/chat/completions",
+        requestTemplate: '{"model":"{{model}}","messages":[{"role":"user","content":"{{prompt}}"}]}',
+        resultField: "choices[0].message.content",
+        ...pointsInfo(response.headers),
+    };
 }
 
 async function testImage(baseUrl: string, apiKey: string, model: string): Promise<HealthResult> {
@@ -95,6 +123,14 @@ async function testImage(baseUrl: string, apiKey: string, model: string): Promis
                 kind: "image",
                 model,
                 status: response.status,
+                protocolKey: "openai",
+                protocol: responseFormat === "url" ? "OpenAI 图片 URL" : "OpenAI 图片 Base64",
+                createPath: "/images/generations",
+                requestTemplate: '{"model":"{{model}}","prompt":"{{prompt}}","size":"{{size}}","response_format":"url"}',
+                resultField: "data[0].url / data[0].b64_json",
+                referenceRule: "图生图使用 /images/edits；VOZEB 会按 multipart、image、images、image_url、input_image 等常见字段自动兼容。",
+                supportsReferenceImage: true,
+                ...imageHealthReferenceConfig(baseUrl),
                 remoteUrl: findStringByKeys(payload, [
                     "url",
                     "image_url",
@@ -124,6 +160,19 @@ async function testImage(baseUrl: string, apiKey: string, model: string): Promis
     return { ok: false, kind: "image", model, status: 0, error: "图片测试失败" };
 }
 
+function imageHealthReferenceConfig(baseUrl: string): Partial<HealthResult> {
+    if (isSub2ApiHealthTarget(baseUrl)) {
+        return {
+            protocolKey: "sub2api",
+            protocol: "sub2api 图片兼容",
+            requestTemplate: '{"model":"{{model}}","prompt":"{{prompt}}","size":"{{size}}","image_urls":["https://..."]}',
+            referenceRule: "图生图使用 JSON 请求体；参考图字段为 image_urls 字符串数组，建议使用公网图片 URL。code2alita/sub2api 对 data:image 兼容不稳定，本地参考图请部署后配置 NEXT_PUBLIC_SITE_URL 或使用已有公网图。",
+            supportsReferenceImage: true,
+        };
+    }
+    return {};
+}
+
 async function testVideo(baseUrl: string, apiKey: string, model: string): Promise<HealthResult> {
     const basePayload = {
         model,
@@ -145,8 +194,8 @@ async function testVideo(baseUrl: string, apiKey: string, model: string): Promis
 }
 
 async function testVideoPayloads(baseUrl: string, apiKey: string, model: string, payloads: Array<Record<string, unknown>>, allowReferenceRetry: boolean): Promise<HealthResult> {
-    for (const path of ["/videos", "/video/generations", "/videos/generations"]) {
-        for (const payload of payloads) {
+    for (const path of videoHealthPaths(baseUrl, model)) {
+        for (const payload of videoHealthPayloadsForPath(path, payloads)) {
             const response = await fetch(apiUrl(baseUrl, path), {
                 method: "POST",
                 headers: jsonHeaders(apiKey),
@@ -155,11 +204,14 @@ async function testVideoPayloads(baseUrl: string, apiKey: string, model: string,
             });
             const data = await readPayload(response);
             if (response.ok) {
+                const config = videoHealthConfig(baseUrl, model, path);
                 return {
                     ok: true,
                     kind: "video",
                     model,
                     status: response.status,
+                    ...config,
+                    referenceHint: config.referenceRule,
                     ...pointsInfo(response.headers),
                     taskId: findStringByKeys(data, ["task_id", "taskId", "id", "job_id", "jobId"]),
                     remoteUrl: findStringByKeys(data, [
@@ -192,13 +244,170 @@ async function testVideoPayloads(baseUrl: string, apiKey: string, model: string,
             const message = errorMessage(data, `视频测试失败，状态码 ${response.status}`);
             if (/not found|not implemented|route|endpoint|unsupported|no such|cannot post|invalid url|404/i.test(message)) break;
             if (shouldRetryVideoHealthPayload(response.status, message)) continue;
-            if (!allowReferenceRetry && shouldRetryVideoHealthWithReference(message)) {
+            if (path !== GLOBAL_AIOPC_VIDEO_CREATE_PATH && path !== SEEDANCE_VIDEO_CREATE_PATH && !allowReferenceRetry && shouldRetryVideoHealthWithReference(message)) {
                 return testVideoPayloads(baseUrl, apiKey, model, buildVideoHealthPayloads(payload, true), true);
             }
             return failed("video", model, response.status, data);
         }
     }
     return { ok: false, kind: "video", model, status: 0, error: "视频测试失败：所有兼容路径都不可用" };
+}
+
+function videoHealthPaths(baseUrl: string, model: string) {
+    if (isSeedanceVideoHealthTarget(baseUrl, model)) return uniquePaths([SEEDANCE_VIDEO_CREATE_PATH, "/video/generations", "/videos/generations", "/videos", GLOBAL_AIOPC_VIDEO_CREATE_PATH]);
+    if (isGlobalAiOpcVideoHealthTarget(baseUrl, model)) return uniquePaths([GLOBAL_AIOPC_VIDEO_CREATE_PATH, "/videos", "/video/generations", "/videos/generations", SEEDANCE_VIDEO_CREATE_PATH]);
+    if (isQingyanVideoHealthTarget(baseUrl, model)) return uniquePaths(["/video/generations", "/videos/generations", "/videos", GLOBAL_AIOPC_VIDEO_CREATE_PATH, SEEDANCE_VIDEO_CREATE_PATH]);
+    return VIDEO_HEALTH_PATHS;
+}
+
+function videoHealthPayloadsForPath(path: string, payloads: Array<Record<string, unknown>>) {
+    if (path === GLOBAL_AIOPC_VIDEO_CREATE_PATH) {
+        return payloads.map((payload) => ({
+            model: String(payload.model || ""),
+            prompt: String(payload.prompt || "A calm 5 second shot of a blue circle logo on a white background."),
+            duration: normalizeGlobalAiOpcHealthDuration(payload.duration || payload.seconds),
+            ratio: "16:9",
+            resolution: "480p",
+            autoFace: false,
+        }));
+    }
+    if (path === SEEDANCE_VIDEO_CREATE_PATH) {
+        return payloads.map((payload) => ({
+            model: String(payload.model || ""),
+            content: [{ type: "text", text: String(payload.prompt || "A calm 5 second shot of a blue circle logo on a white background.") }],
+            duration: normalizeSeedanceHealthDuration(payload.duration || payload.seconds),
+            ratio: "16:9",
+            resolution: "480p",
+            generate_audio: false,
+            watermark: false,
+        }));
+    }
+    return payloads;
+}
+
+function videoHealthConfig(baseUrl: string, model: string, path: string): Partial<HealthResult> {
+    if (path === GLOBAL_AIOPC_VIDEO_CREATE_PATH) {
+        return {
+            protocolKey: "globalaiopc",
+            protocol: "GlobalAiOpc Videos",
+            createPath: GLOBAL_AIOPC_VIDEO_CREATE_PATH,
+            queryPath: "/result/:task_id",
+            requestTemplate: '{"model":"{{model}}","prompt":"{{prompt}}","duration":5,"ratio":"16:9","resolution":"720p","referenceImages":["https://..."],"referenceVideos":["https://..."],"referenceAudios":["https://..."]}',
+            resultField: "video_url / media_url / result_url / url",
+            statusField: "status / state",
+            durationRange: "4-15 秒",
+            referenceRule: "参考图、参考视频和参考音频必须是公网 URL；本地参考图会尝试生成临时公开地址，部署时需要 NEXT_PUBLIC_SITE_URL。",
+            supportsReferenceImage: true,
+            supportsReferenceVideo: true,
+            supportsReferenceAudio: true,
+        };
+    }
+    if (path === SEEDANCE_VIDEO_CREATE_PATH) {
+        return {
+            protocolKey: "seedance",
+            protocol: "Seedance / Ark Plan",
+            createPath: SEEDANCE_VIDEO_CREATE_PATH,
+            queryPath: "/contents/generations/tasks/:task_id",
+            requestTemplate: '{"model":"{{model}}","content":[{"type":"text","text":"{{prompt}}"}],"duration":5,"ratio":"16:9","resolution":"720p"}',
+            resultField: "content.video_url",
+            statusField: "status",
+            durationRange: "按模型限制，常用 5/10 秒",
+            referenceRule: "支持图片、视频、音频参考素材；参考视频和音频有大小与时长限制，建议使用公网 URL。",
+            supportsReferenceImage: true,
+            supportsReferenceVideo: true,
+            supportsReferenceAudio: true,
+        };
+    }
+    if (path === "/videos") {
+        return {
+            protocolKey: "openai",
+            protocol: "OpenAI Videos",
+            createPath: "/videos",
+            queryPath: "/videos/:task_id",
+            requestTemplate: "multipart/form-data: model、prompt、seconds、size、input_reference[]",
+            resultField: "/videos/:task_id/content",
+            statusField: "status",
+            durationRange: "按上游模型限制",
+            referenceRule: "参考图使用 multipart 文件上传，由 VOZEB 自动组装。",
+            supportsReferenceImage: true,
+            supportsReferenceVideo: false,
+            supportsReferenceAudio: false,
+        };
+    }
+    if (isQingyanVideoHealthTarget(baseUrl, model) || path === "/video/generations") {
+        return {
+            protocolKey: "compatible",
+            protocol: isQingyanVideoHealthTarget(baseUrl, model) ? "青衍视频任务" : "兼容视频任务",
+            createPath: path,
+            queryPath: `${path}/:task_id`,
+            requestTemplate: '{"model":"{{model}}","prompt":"{{prompt}}","duration":5,"ratio":"16:9","image":"https://...","images":["https://..."]}',
+            resultField: "video_url / media_url / output_url / url",
+            statusField: "status / state / task_status",
+            durationRange: isQingyanVideoHealthTarget(baseUrl, model) ? "5、10、15 秒" : "5、10、15 秒或按上游限制",
+            referenceRule: isQingyanVideoHealthTarget(baseUrl, model) ? "图生视频按文档使用公网图片 URL；单图字段 image，多图字段 images，避免提交 base64。" : "参考图会按 base64、URL 和常见兼容字段自动尝试。",
+            supportsReferenceImage: true,
+            supportsReferenceVideo: false,
+            supportsReferenceAudio: false,
+        };
+    }
+    return {
+        protocolKey: "compatible",
+        protocol: "兼容视频任务",
+        createPath: path,
+        queryPath: `${path}/:task_id`,
+        requestTemplate: '{"model":"{{model}}","prompt":"{{prompt}}","duration":5,"ratio":"16:9"}',
+        resultField: "video_url / media_url / output_url / url",
+        statusField: "status / state / task_status",
+        durationRange: "5、10、15 秒或按上游限制",
+        referenceRule: "参考图会按 base64、URL 和常见兼容字段自动尝试。",
+        supportsReferenceImage: true,
+        supportsReferenceVideo: false,
+        supportsReferenceAudio: false,
+    };
+}
+
+function isGlobalAiOpcVideoHealthTarget(baseUrl: string, model: string) {
+    const url = baseUrl.toLowerCase();
+    const modelName = model.trim().toLowerCase();
+    return url.includes("globalaiopc.com") || url.includes("aizfw.cn") || url.includes("kyyreactapiserver") || ["videos", "videos_stable", "videos_stable_fast"].includes(modelName);
+}
+
+function isSeedanceVideoHealthTarget(baseUrl: string, model: string) {
+    const url = baseUrl.toLowerCase();
+    const modelName = model.trim().toLowerCase();
+    return url.includes("volces.com") || url.includes("/api/plan/v3") || modelName.includes("seedance") || modelName.includes("doubao-seedance");
+}
+
+function isQingyanVideoHealthTarget(baseUrl: string, model: string) {
+    const url = baseUrl.toLowerCase();
+    const modelName = model.trim().toLowerCase();
+    return url.includes("api2.qingyanzhiying.top") || modelName === "video-v1";
+}
+
+function isSub2ApiHealthTarget(baseUrl: string) {
+    try {
+        const url = new URL(baseUrl);
+        const host = url.hostname.toLowerCase();
+        const source = `${host}${url.pathname}`.toLowerCase();
+        return host === "code2alita.com" || host.endsWith(".code2alita.com") || source.includes("sub2api");
+    } catch {
+        const source = baseUrl.toLowerCase();
+        return source.includes("code2alita.com") || source.includes("sub2api");
+    }
+}
+
+function normalizeGlobalAiOpcHealthDuration(value: unknown) {
+    const seconds = Math.floor(Number(value) || 5);
+    return Math.max(4, Math.min(15, seconds));
+}
+
+function normalizeSeedanceHealthDuration(value: unknown) {
+    const seconds = Math.floor(Number(value) || 5);
+    return seconds <= 5 ? 5 : 10;
+}
+
+function uniquePaths(paths: string[]) {
+    return Array.from(new Set(paths));
 }
 
 function buildVideoHealthPayloads(basePayload: Record<string, unknown>, withReference = false) {
@@ -251,9 +460,28 @@ function jsonHeaders(apiKey: string) {
 }
 
 function apiUrl(baseUrl: string, path: string) {
-    const normalized = baseUrl.trim().replace(/\/+$/, "");
-    const apiBase = normalized.toLowerCase().endsWith("/v1") ? normalized : `${normalized}/v1`;
+    const normalized = normalizeHealthBaseUrl(baseUrl.trim().replace(/\/+$/, ""));
+    const lower = normalized.toLowerCase();
+    const apiBase = lower.endsWith("/v1") || lower.endsWith("/api/v3") || lower.endsWith("/api/plan/v3") ? normalized : `${normalized}/v1`;
     return `${apiBase}${path}`;
+}
+
+function normalizeHealthBaseUrl(baseUrl: string) {
+    try {
+        const url = new URL(baseUrl);
+        const path = url.pathname.replace(/\/+$/, "");
+        const lowerPath = path.toLowerCase();
+        const arkPlanIndex = lowerPath.indexOf("/api/plan/v3");
+        if (arkPlanIndex < 0) return baseUrl;
+        const end = arkPlanIndex + "/api/plan/v3".length;
+        if (lowerPath.length !== end && lowerPath[end] !== "/") return baseUrl;
+        url.pathname = path.slice(0, end);
+        url.search = "";
+        url.hash = "";
+        return url.toString().replace(/\/+$/, "");
+    } catch {
+        return baseUrl;
+    }
 }
 
 async function readPayload(response: Response) {

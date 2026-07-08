@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type DragEvent as ReactDragEvent, type ReactNode } from "react";
 import { Button, Tooltip } from "antd";
 import { ArrowUp, CheckCircle2, CircleAlert, ImagePlus, LoaderCircle, UserRound, Wrench, X, XCircle } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
+import { droppedFiles, leftDropTarget, preventFileDragEvent } from "@/lib/file-drop";
 import type { LocalUser } from "@/stores/use-user-store";
 
 export type CanvasAgentChatAttachment = { id: string; name: string; url: string };
@@ -191,10 +192,33 @@ export function AgentChatComposer({
     left?: ReactNode;
 }) {
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const [isDragActive, setIsDragActive] = useState(false);
     const canSubmit = !disabled && !sending && Boolean(prompt.trim() || attachments.length);
+    const handleDragOver = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!onAddFiles || sending || !preventFileDragEvent(event)) return;
+        setIsDragActive(true);
+    };
+    const handleDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!onAddFiles || !preventFileDragEvent(event) || !leftDropTarget(event)) return;
+        setIsDragActive(false);
+    };
+    const handleDrop = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!onAddFiles || sending || !preventFileDragEvent(event)) return;
+        setIsDragActive(false);
+        const images = droppedFiles(event, (file) => file.type.startsWith("image/"));
+        if (!images.length) return;
+        void onAddFiles(images);
+    };
     return (
         <div className="px-2 pb-2 pt-2" onWheelCapture={(event) => event.stopPropagation()}>
-            <div className="rounded-[24px] border px-3 pb-3 pt-3 shadow-lg" style={{ background: theme.toolbar.panel, borderColor: theme.node.stroke }}>
+            <div
+                className="rounded-[24px] border px-3 pb-3 pt-3 shadow-lg transition"
+                style={{ background: theme.toolbar.panel, borderColor: isDragActive ? "#22d3ee" : theme.node.stroke }}
+                onDragEnter={handleDragOver}
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+            >
                 {attachments.length ? (
                     <div className="thin-scrollbar mb-2 flex gap-2 overflow-x-auto pb-1">
                         {attachments.map((item) => (

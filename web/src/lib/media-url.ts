@@ -2,7 +2,8 @@ const ABSOLUTE_OR_SPECIAL_URL_RE = /^[a-z][a-z\d+.-]*:/i;
 
 export function resolveGeneratedMediaUrl(value: string, baseUrl?: string | null) {
     const mediaUrl = value.trim();
-    if (!mediaUrl || ABSOLUTE_OR_SPECIAL_URL_RE.test(mediaUrl)) return mediaUrl;
+    if (!mediaUrl) return mediaUrl;
+    if (ABSOLUTE_OR_SPECIAL_URL_RE.test(mediaUrl)) return rewriteInternalAbsoluteMediaUrl(mediaUrl, baseUrl);
 
     const base = parseBaseUrl(baseUrl);
     if (!base) return mediaUrl;
@@ -14,6 +15,28 @@ export function resolveGeneratedMediaUrl(value: string, baseUrl?: string | null)
     } catch {
         return mediaUrl;
     }
+}
+
+function rewriteInternalAbsoluteMediaUrl(mediaUrl: string, baseUrl?: string | null) {
+    if (!/^https?:\/\//i.test(mediaUrl)) return mediaUrl;
+
+    const base = parseBaseUrl(baseUrl);
+    if (!base || (base.protocol !== "http:" && base.protocol !== "https:")) return mediaUrl;
+
+    try {
+        const parsed = new URL(mediaUrl);
+        if (!isInternalMediaHost(parsed.hostname)) return mediaUrl;
+        parsed.protocol = base.protocol;
+        parsed.host = base.host;
+        return parsed.toString();
+    } catch {
+        return mediaUrl;
+    }
+}
+
+function isInternalMediaHost(hostname: string) {
+    const host = hostname.toLowerCase();
+    return !host || !host.includes(".") || host.endsWith(".internal") || host.endsWith(".local");
 }
 
 function parseBaseUrl(baseUrl?: string | null) {

@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 
+import type { SystemChannelAdvancedConfig } from "@/lib/auth/store";
 import type { GenerationLogSource } from "@/lib/server/generation-log-store";
 
 export type ImageTaskKind = "generation" | "edit";
@@ -14,6 +15,7 @@ export type ImageTaskConfig = {
     quality?: string;
     size?: string;
     systemPrompt?: string;
+    advancedConfig?: SystemChannelAdvancedConfig;
 };
 
 export type ImageTaskReference = {
@@ -22,6 +24,8 @@ export type ImageTaskReference = {
     type?: string;
     dataUrl: string;
     url?: string;
+    remoteUrl?: string;
+    serverUrl?: string;
 };
 
 export type ImageTask = {

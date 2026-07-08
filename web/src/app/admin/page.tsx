@@ -56,7 +56,7 @@ export default async function AdminPage() {
                             </span>
                             <div className="min-w-0">
                                 <h1 className="text-2xl font-semibold tracking-normal text-stone-950 dark:text-stone-100">管理员后台</h1>
-                                <p className="mt-1.5 max-w-2xl text-sm leading-6 text-stone-500 dark:text-stone-400">管理注册开关、用户状态、额度规则和系统接口配置。</p>
+                                <p className="mt-1.5 max-w-2xl text-sm leading-6 text-stone-500 dark:text-stone-400">管理网站、接口、用户、额度规则和生成日志。</p>
                             </div>
                         </div>
                         <AdminReturnButton />

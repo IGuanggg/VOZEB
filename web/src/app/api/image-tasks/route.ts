@@ -9,6 +9,7 @@ import { resolveGeneratedMediaUrl } from "@/lib/media-url";
 import { toSafeGenerationErrorMessage } from "@/lib/server/generation-errors";
 import { countActiveImageTasksForUser, createImageTask, updateImageTask, type ImageTask, type ImageTaskConfig, type ImageTaskReference } from "@/lib/server/image-task-store";
 import { isGenerationSource, recordGenerationLog } from "@/lib/server/generation-log-store";
+import { writeReferenceImageDataUrl } from "@/lib/server/reference-asset-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -109,6 +110,7 @@ const IMAGE_CONTAINER_KEYS = ["data", "result", "results", "response", "payload"
 const IMAGE_TASK_ID_KEYS = ["task_id", "taskId", "id", "job_id", "jobId", "request_id", "requestId", "generation_id", "generationId"];
 const IMAGE_STATUS_KEYS = ["status", "state", "task_status", "taskStatus"];
 const IMAGE_POLL_URL_KEYS = ["poll_url", "pollUrl", "polling_url", "pollingUrl", "status_url", "statusUrl", "task_url", "taskUrl"];
+type ImageEditReferenceMode = "auto" | "multipart" | "json" | "public-url";
 
 export async function POST(request: Request) {
     const currentUser = await getCurrentUser();
@@ -133,23 +135,24 @@ export async function POST(request: Request) {
         title: typeof body.title === "string" ? body.title : "",
         config,
         prompt,
-        references: Array.isArray(body.references) ? body.references.filter((item) => Boolean(item?.dataUrl || item?.url)) : [],
-        mask: body.mask?.dataUrl || body.mask?.url ? body.mask : undefined,
+        references: Array.isArray(body.references) ? body.references.filter((item) => Boolean(item?.dataUrl || item?.url || item?.remoteUrl || item?.serverUrl)) : [],
+        mask: body.mask?.dataUrl || body.mask?.url || body.mask?.remoteUrl || body.mask?.serverUrl ? body.mask : undefined,
     });
     const cookie = request.headers.get("cookie") || "";
     const origin = resolveInternalOrigin(new URL(request.url).origin);
-    void runImageTask(task, origin, cookie);
+    const publicOrigin = requestPublicOrigin(request);
+    void runImageTask(task, origin, publicOrigin, cookie);
 
     return NextResponse.json({ task: publicTask(task) });
 }
 
-async function runImageTask(task: ImageTask, origin: string, cookie: string) {
+async function runImageTask(task: ImageTask, origin: string, publicOrigin: string, cookie: string) {
     updateImageTask(task.id, { status: "running" });
     const heartbeat = setInterval(() => {
         updateImageTask(task.id, { status: "running" });
     }, TASK_HEARTBEAT_MS);
     try {
-        const result = task.config.apiFormat === "gemini" ? await runGeminiImageTask(task, origin, cookie) : await runOpenAiImageTask(task, origin, cookie);
+        const result = task.config.apiFormat === "gemini" ? await runGeminiImageTask(task, origin, cookie) : await runOpenAiImageTask(task, origin, publicOrigin, cookie);
         const resultRemoteUrl = (result as { remoteUrl?: unknown }).remoteUrl;
         const safeResult =
             directRemoteImageResult(result.dataUrl, typeof resultRemoteUrl === "string" ? resultRemoteUrl : undefined) || (await inlineRemoteImageResult(result.dataUrl, origin, cookie, typeof resultRemoteUrl === "string" ? resultRemoteUrl : undefined));
@@ -202,30 +205,30 @@ async function writeImageGenerationLog(task: ImageTask, status: "success" | "fai
     });
 }
 
-async function runOpenAiImageTask(task: ImageTask, origin: string, cookie: string): Promise<ImageTaskRunResult> {
+async function runOpenAiImageTask(task: ImageTask, origin: string, publicOrigin: string, cookie: string): Promise<ImageTaskRunResult> {
     const config = task.config;
     const quality = normalizeQuality(config.quality || "");
     const requestSize = resolveRequestSize(quality, config.size || "auto");
-    const path = task.kind === "edit" ? "/images/edits" : "/images/generations";
+    const path = await openAiImageTaskPath(config, task.kind);
     const url = taskUrl(config, path, origin);
     const headers = taskHeaders(config, cookie);
     const responseFormat = await preferredImageResponseFormat(config);
-    const useJsonImageEdit = task.kind === "edit";
-    if (useJsonImageEdit) return runOpenAiJsonImageEditTask(task, url, origin, quality, requestSize, cookie, responseFormat);
+    const useJsonImageEdit = task.kind === "edit" && (await shouldUseJsonImageEdit(config, task, origin, publicOrigin));
+    if (useJsonImageEdit) return runOpenAiJsonImageEditTask(task, url, origin, publicOrigin, quality, requestSize, cookie, responseFormat);
     let response: Response;
 
     if (task.kind === "edit") {
         let formData: FormData;
         try {
             formData = await buildImageEditFormData(task, quality, requestSize, origin, cookie, "url");
-        } catch {
-            return runOpenAiJsonImageEditTask(task, url, origin, quality, requestSize, cookie, "url");
+        } catch (error) {
+            throw error instanceof Error ? error : new Error("参考图读取失败，请重新上传参考图");
         }
         response = await taskFetch(config, url, { method: "POST", headers, body: formData, cache: "no-store" });
         if (!response.ok) {
             const message = await readFetchError(response, "图片生成失败");
-            if (shouldFallbackToJsonImageEdit(response.status, message)) return runOpenAiJsonImageEditTask(task, url, origin, quality, requestSize, cookie, "url");
-            if (shouldTryNextImageResponseFormat("url", response.status, message)) return runOpenAiImageTaskWithBase64Response(task, origin, cookie);
+            if (shouldFallbackToJsonImageEdit(response.status, message)) return runOpenAiJsonImageEditTask(task, url, origin, publicOrigin, quality, requestSize, cookie, "url");
+            if (shouldTryNextImageResponseFormat("url", response.status, message)) return runOpenAiImageTaskWithBase64Response(task, origin, publicOrigin, cookie);
             if (shouldFallbackToResponsesImage(response.status, message)) return runOpenAiResponsesImageTask(task, origin, cookie);
             throw new Error(message);
         }
@@ -247,7 +250,7 @@ async function runOpenAiImageTask(task: ImageTask, origin: string, cookie: strin
         });
         if (!response.ok) {
             const message = await readFetchError(response, "图片生成失败");
-            if (shouldTryNextImageResponseFormat(responseFormat, response.status, message)) return runOpenAiImageTaskWithBase64Response(task, origin, cookie);
+            if (shouldTryNextImageResponseFormat(responseFormat, response.status, message)) return runOpenAiImageTaskWithBase64Response(task, origin, publicOrigin, cookie);
             if (shouldFallbackToResponsesImage(response.status, message)) return runOpenAiResponsesImageTask(task, origin, cookie);
             throw new Error(message);
         }
@@ -257,7 +260,7 @@ async function runOpenAiImageTask(task: ImageTask, origin: string, cookie: strin
     const payload = (await response.json()) as ImageApiResponse;
     const resultBaseUrl = response.headers.get("x-vozeb-upstream-url") || url;
     const result = await parseImagePayloadOrPoll(config, payload, resultBaseUrl, cookie, url);
-    if (responseFormat === "url" && shouldRetryInternalImageUrlAsBase64(result)) return runOpenAiImageTaskWithBase64Response(task, origin, cookie);
+    if (responseFormat === "url" && shouldRetryInternalImageUrlAsBase64(result)) return runOpenAiImageTaskWithBase64Response(task, origin, publicOrigin, cookie);
     return { ...result, pointsRemaining: readPointsRemaining(response.headers) };
 }
 
@@ -265,6 +268,7 @@ async function runOpenAiJsonImageEditTask(
     task: ImageTask,
     url: string,
     origin: string,
+    publicOrigin: string,
     quality: string | undefined,
     requestSize: string | undefined,
     cookie: string,
@@ -274,14 +278,19 @@ async function runOpenAiJsonImageEditTask(
     const headers = taskHeaders(config, cookie);
     headers.set("content-type", "application/json");
     let lastMessage = "";
-    for (const body of buildJsonImageEditBodies(task, quality, requestSize, responseFormat, origin)) {
+    const apiBase = await resolveConfiguredApiBaseUrl(task.config.baseUrl).catch(() => task.config.baseUrl);
+    const referenceMode = configuredImageEditReferenceMode(config);
+    const imageUrlObjectOnlyMode = shouldUseSub2ApiImageEdit(config, apiBase);
+    const publicUrlReferenceMode = imageUrlObjectOnlyMode || referenceMode === "public-url" || (referenceMode === "auto" && isQingyanApiBase(apiBase));
+    for (const body of await buildJsonImageEditBodies(task, quality, requestSize, responseFormat, origin, publicOrigin, publicUrlReferenceMode, imageUrlObjectOnlyMode)) {
         const response = await taskFetch(config, url, { method: "POST", headers, body: JSON.stringify(body), cache: "no-store" });
         if (!response.ok) {
             const message = await readFetchError(response, "图片生成失败");
             lastMessage = message;
+            if (imageUrlObjectOnlyMode) throw new Error(message);
             if (shouldRetryJsonImageEditPayload(response.status, message)) continue;
             if (shouldTryNextImageResponseFormat(responseFormat, response.status, message)) {
-                if (responseFormat === "url") return runOpenAiJsonImageEditTask(task, url, origin, quality, requestSize, cookie, "b64_json");
+                if (responseFormat === "url") return runOpenAiJsonImageEditTask(task, url, origin, publicOrigin, quality, requestSize, cookie, "b64_json");
                 return runOpenAiResponsesImageTask(task, origin, cookie);
             }
             if (shouldFallbackToResponsesImage(response.status, message)) return runOpenAiResponsesImageTask(task, origin, cookie);
@@ -290,21 +299,21 @@ async function runOpenAiJsonImageEditTask(
         const payload = (await response.json()) as ImageApiResponse;
         const resultBaseUrl = response.headers.get("x-vozeb-upstream-url") || url;
         const result = await parseImagePayloadOrPoll(config, payload, resultBaseUrl, cookie, url);
-        if (responseFormat === "url" && shouldRetryInternalImageUrlAsBase64(result)) return runOpenAiJsonImageEditTask(task, url, origin, quality, requestSize, cookie, "b64_json");
+        if (responseFormat === "url" && shouldRetryInternalImageUrlAsBase64(result)) return runOpenAiJsonImageEditTask(task, url, origin, publicOrigin, quality, requestSize, cookie, "b64_json");
         return { ...result, pointsRemaining: readPointsRemaining(response.headers) };
     }
     if (shouldTryNextImageResponseFormat(responseFormat, 400, lastMessage)) {
-        if (responseFormat === "url") return runOpenAiJsonImageEditTask(task, url, origin, quality, requestSize, cookie, "b64_json");
+        if (responseFormat === "url") return runOpenAiJsonImageEditTask(task, url, origin, publicOrigin, quality, requestSize, cookie, "b64_json");
         return runOpenAiResponsesImageTask(task, origin, cookie);
     }
     throw new Error(lastMessage || "图片生成失败");
 }
 
-async function runOpenAiImageTaskWithBase64Response(task: ImageTask, origin: string, cookie: string): Promise<ImageTaskRunResult> {
+async function runOpenAiImageTaskWithBase64Response(task: ImageTask, origin: string, publicOrigin: string, cookie: string): Promise<ImageTaskRunResult> {
     const config = task.config;
     const quality = normalizeQuality(config.quality || "");
     const requestSize = resolveRequestSize(quality, config.size || "auto");
-    const path = task.kind === "edit" ? "/images/edits" : "/images/generations";
+    const path = await openAiImageTaskPath(config, task.kind);
     const url = taskUrl(config, path, origin);
     const headers = taskHeaders(config, cookie);
 
@@ -312,13 +321,13 @@ async function runOpenAiImageTaskWithBase64Response(task: ImageTask, origin: str
         let formData: FormData;
         try {
             formData = await buildImageEditFormData(task, quality, requestSize, origin, cookie, "b64_json");
-        } catch {
-            return runOpenAiJsonImageEditTask(task, url, origin, quality, requestSize, cookie, "b64_json");
+        } catch (error) {
+            throw error instanceof Error ? error : new Error("参考图读取失败，请重新上传参考图");
         }
         const response = await taskFetch(config, url, { method: "POST", headers, body: formData, cache: "no-store" });
         if (!response.ok) {
             const message = await readFetchError(response, "图片生成失败");
-            if (shouldFallbackToJsonImageEdit(response.status, message)) return runOpenAiJsonImageEditTask(task, url, origin, quality, requestSize, cookie, "b64_json");
+            if (shouldFallbackToJsonImageEdit(response.status, message)) return runOpenAiJsonImageEditTask(task, url, origin, publicOrigin, quality, requestSize, cookie, "b64_json");
             if (shouldFallbackToResponsesImage(response.status, message)) return runOpenAiResponsesImageTask(task, origin, cookie);
             throw new Error(message);
         }
@@ -401,10 +410,19 @@ function buildResponsesImageBodies(task: ImageTask, origin: string) {
     ];
 }
 
-function buildJsonImageEditBodies(task: ImageTask, quality: string | undefined, requestSize: string | undefined, responseFormat: (typeof IMAGE_RESPONSE_FORMATS)[number], origin: string) {
-    const images = task.references.map((reference) => referenceRequestUrl(reference, origin)).filter(Boolean);
-    const mask = task.mask ? referenceRequestUrl(task.mask, origin) : "";
-    const prompt = buildImageReferencePromptText(task.prompt, task.references);
+async function buildJsonImageEditBodies(
+    task: ImageTask,
+    quality: string | undefined,
+    requestSize: string | undefined,
+    responseFormat: (typeof IMAGE_RESPONSE_FORMATS)[number],
+    origin: string,
+    publicOrigin: string,
+    publicUrlReferenceMode = false,
+    imageUrlObjectOnlyMode = false,
+) {
+    const images = (await Promise.all(task.references.map((reference) => (publicUrlReferenceMode ? publicImageReferenceRequestUrl(reference, origin, publicOrigin) : Promise.resolve(jsonImageReferenceRequestUrl(reference, origin)))))).filter(Boolean);
+    const mask = task.mask ? (publicUrlReferenceMode ? await publicImageReferenceRequestUrl(task.mask, origin, publicOrigin) : jsonImageReferenceRequestUrl(task.mask, origin)) : "";
+    const prompt = imageUrlObjectOnlyMode ? buildSub2ApiImageEditPrompt(task.prompt, task.references) : buildImageReferencePromptText(task.prompt, task.references);
     const base = {
         model: task.config.model,
         prompt: withSystemPrompt(task.config, prompt),
@@ -417,8 +435,23 @@ function buildJsonImageEditBodies(task: ImageTask, quality: string | undefined, 
     };
     if (!images.length) return [base];
     const first = images[0];
+    const imageUrlObjects = images.map((item) => ({ image_url: item }));
     const imageObjects = images.map((item) => ({ url: item }));
+    if (imageUrlObjectOnlyMode) {
+        return [
+            {
+                model: task.config.model,
+                prompt: withSystemPrompt(task.config, prompt),
+                n: 1,
+                ...(quality ? { quality } : {}),
+                ...(requestSize ? { size: requestSize } : {}),
+                ...(mask ? { mask } : {}),
+                image_urls: images,
+            },
+        ];
+    }
     return [
+        { ...base, images: imageUrlObjects, ref_assets: imageUrlObjects, image_urls: imageUrlObjects },
         { ...base, ...(images.length === 1 ? { image: first } : {}), images, ref_assets: images, image_urls: images },
         { ...base, image_url: first },
         { ...base, input_image: first },
@@ -427,12 +460,61 @@ function buildJsonImageEditBodies(task: ImageTask, quality: string | undefined, 
     ];
 }
 
+function buildSub2ApiImageEditPrompt(prompt: string, references: readonly unknown[]) {
+    const text = prompt.trim();
+    if (!references.length) return text;
+    const fieldHint = references.length === 1 ? "image_urls[0]" : "image_urls";
+    return [
+        `Use the actual reference image supplied in the JSON field ${fieldHint} as visual input, not as a text-only hint.`,
+        "The first reference image, image_urls[0], is the primary identity and character reference. Keep the same person or character, face proportions, hairstyle, body shape, clothing, and main pose as much as possible.",
+        "Only apply the user's requested edit to the existing referenced subject. Do not replace the referenced person or character with a new unrelated person.",
+        "",
+        `User request: ${text}`,
+    ].join("\n");
+}
+
 function referenceRequestUrl(reference: ImageTaskReference, origin = "") {
+    return referenceRequestUrlCandidates(reference, origin)[0] || "";
+}
+
+function jsonImageReferenceRequestUrl(reference: ImageTaskReference, origin = "") {
+    const remoteUrl = referenceRequestUrlCandidates(reference, origin).find((value) => isExternalPublicMediaUrl(value));
+    if (remoteUrl) return remoteUrl;
+    return referenceRequestUrl(reference, origin);
+}
+
+async function publicImageReferenceRequestUrl(reference: ImageTaskReference, origin: string, publicOrigin: string) {
+    const candidates = referenceRequestUrlCandidates(reference, origin).filter((value) => isExternalPublicMediaUrl(value));
+    if (candidates.length) return candidates[0];
+
     const dataUrl = (reference.dataUrl || "").trim();
-    if (/^data:image\//i.test(dataUrl)) return dataUrl;
-    const remoteUrl = (reference.url || "").trim();
-    if (isRemoteMediaUrl(remoteUrl)) return remoteUrl;
-    return normalizeReferenceRequestUrl(dataUrl, origin);
+    if (!/^data:image\//i.test(dataUrl)) throw new Error("\u53c2\u8003\u56fe\u9700\u8981\u516c\u7f51\u56fe\u7247 URL\uff0c\u8bf7\u91cd\u65b0\u4e0a\u4f20\u53c2\u8003\u56fe");
+    if (!isExternalPublicOrigin(publicOrigin))
+        throw new Error("\u53c2\u8003\u56fe\u9700\u8981\u516c\u7f51\u56fe\u7247 URL\uff1b\u672c\u5730\u5f00\u53d1 localhost \u4e0d\u80fd\u76f4\u63a5\u63d0\u4ea4\u7ed9\u4e0a\u6e38\uff0c\u8bf7\u90e8\u7f72\u540e\u914d\u7f6e NEXT_PUBLIC_SITE_URL");
+    const asset = await writeReferenceImageDataUrl(dataUrl);
+    return `${publicOrigin.replace(/\/+$/, "")}/api/reference-assets/${asset.token}`;
+}
+
+function referenceRequestUrlCandidates(reference: ImageTaskReference, origin = "") {
+    return uniqueStrings([reference.remoteUrl, reference.url, reference.serverUrl, reference.dataUrl].map((value) => normalizeReferenceRequestUrl(value || "", origin)).filter(Boolean));
+}
+
+function rawReferenceRequestUrlCandidates(reference: ImageTaskReference) {
+    return uniqueStrings([reference.remoteUrl, reference.url, reference.serverUrl, reference.dataUrl].map((value) => (value || "").trim()).filter(Boolean));
+}
+
+function imageEditReferences(task: ImageTask) {
+    return [...task.references, ...(task.mask ? [task.mask] : [])];
+}
+
+function canUsePublicImageReferences(task: ImageTask, origin: string, publicOrigin: string) {
+    const references = imageEditReferences(task);
+    if (!references.length) return false;
+    return references.every((reference) => referenceRequestUrlCandidates(reference, origin).some((value) => isExternalPublicMediaUrl(value)) || (isExternalPublicOrigin(publicOrigin) && /^data:image\//i.test((reference.dataUrl || "").trim())));
+}
+
+function uniqueStrings(values: string[]) {
+    return Array.from(new Set(values));
 }
 
 function normalizeReferenceRequestUrl(value: string, origin: string) {
@@ -447,6 +529,58 @@ function normalizeReferenceRequestUrl(value: string, origin: string) {
         return url;
     }
     return url;
+}
+
+function requestPublicOrigin(request: Request) {
+    const configured = normalizePublicOrigin(process.env.NEXT_PUBLIC_SITE_URL || "");
+    if (configured) return configured;
+    const requestUrl = new URL(request.url);
+    const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+    const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+    const host = forwardedHost || request.headers.get("host") || requestUrl.host;
+    const proto = forwardedProto || requestUrl.protocol.replace(/:$/, "");
+    return normalizePublicOrigin(`${proto}://${host}`);
+}
+
+function normalizePublicOrigin(value: string) {
+    try {
+        const url = new URL(value.trim().replace(/\/+$/, ""));
+        if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+        return url.origin;
+    } catch {
+        return "";
+    }
+}
+
+function isExternalPublicOrigin(value: string) {
+    if (!value) return false;
+    try {
+        return isExternalPublicHost(new URL(value).hostname);
+    } catch {
+        return false;
+    }
+}
+
+function isExternalPublicMediaUrl(value: string) {
+    const url = value.trim();
+    if (!/^https?:\/\//i.test(url)) return false;
+    try {
+        return isExternalPublicHost(new URL(url).hostname);
+    } catch {
+        return false;
+    }
+}
+
+function isExternalPublicHost(hostname: string) {
+    const host = hostname.toLowerCase();
+    if (!host || host === "localhost" || host.endsWith(".localhost")) return false;
+    if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80")) return false;
+    const parts = host.split(".").map((part) => Number(part));
+    if (parts.length === 4 && parts.every((part) => Number.isInteger(part) && part >= 0 && part <= 255)) {
+        const [a, b] = parts;
+        return !(a === 10 || a === 127 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254) || a === 0);
+    }
+    return host.includes(".");
 }
 
 async function runGeminiImageTask(task: ImageTask, origin: string, cookie: string): Promise<ImageTaskRunResult> {
@@ -489,7 +623,32 @@ function sanitizeConfig(config?: ImageTaskConfig): ImageTaskConfig | null {
         quality: config.quality || "auto",
         size: config.size || "auto",
         systemPrompt: "",
+        advancedConfig: sanitizeAdvancedConfig(config.advancedConfig),
     };
+}
+
+function sanitizeAdvancedConfig(config?: ImageTaskConfig["advancedConfig"]) {
+    if (!config || typeof config !== "object") return undefined;
+    return {
+        protocol: config.protocol || "auto",
+        textModel: textOrEmpty(config.textModel),
+        imageModel: textOrEmpty(config.imageModel),
+        videoModel: textOrEmpty(config.videoModel),
+        createPath: textOrEmpty(config.createPath),
+        queryPath: textOrEmpty(config.queryPath),
+        requestTemplate: textOrEmpty(config.requestTemplate),
+        resultField: textOrEmpty(config.resultField),
+        statusField: textOrEmpty(config.statusField),
+        durationRange: textOrEmpty(config.durationRange),
+        referenceRule: textOrEmpty(config.referenceRule),
+        supportsReferenceImage: Boolean(config.supportsReferenceImage),
+        supportsReferenceVideo: Boolean(config.supportsReferenceVideo),
+        supportsReferenceAudio: Boolean(config.supportsReferenceAudio),
+    };
+}
+
+function textOrEmpty(value: unknown) {
+    return typeof value === "string" ? value.trim() : "";
 }
 
 function rawModelName(value: string) {
@@ -501,6 +660,30 @@ function rawModelName(value: string) {
 async function preferredImageResponseFormat(config: ImageTaskConfig): Promise<(typeof IMAGE_RESPONSE_FORMATS)[number]> {
     const apiBase = await resolveConfiguredApiBaseUrl(config.baseUrl).catch(() => config.baseUrl);
     return isQingyanApiBase(apiBase) ? "b64_json" : "url";
+}
+
+async function openAiImageTaskPath(config: ImageTaskConfig, kind: ImageTask["kind"]) {
+    if (kind !== "edit") return "/images/generations";
+    const apiBase = await resolveConfiguredApiBaseUrl(config.baseUrl).catch(() => config.baseUrl);
+    return shouldUseSub2ApiImageEdit(config, apiBase) ? "/images/generations" : "/images/edits";
+}
+
+async function shouldUseJsonImageEdit(config: ImageTaskConfig, task?: ImageTask, origin = "", publicOrigin = "") {
+    const apiBase = await resolveConfiguredApiBaseUrl(config.baseUrl).catch(() => config.baseUrl);
+    const referenceMode = configuredImageEditReferenceMode(config);
+    if (shouldUseSub2ApiImageEdit(config, apiBase)) return true;
+    if (referenceMode === "json" || referenceMode === "public-url") return true;
+    if (referenceMode === "multipart") return false;
+    return isJsonImageEditApiBase(apiBase);
+}
+
+function configuredImageEditReferenceMode(config: ImageTaskConfig): ImageEditReferenceMode {
+    const rule = (config.advancedConfig?.referenceRule || "").trim().toLowerCase();
+    if (!rule) return "auto";
+    if (/\bmultipart\b|form-?data|file upload|\u6587\u4ef6\u4e0a\u4f20|\u4e0a\u4f20\u6587\u4ef6/i.test(rule)) return "multipart";
+    if (/\u516c\u7f51|public|next_public_site_url|localhost|must.*\burl\b|\burl\b.*only|\u5fc5\u987b.*\burl\b|\u4ec5.*\burl\b|\u53ea.*\burl\b/i.test(rule)) return "public-url";
+    if (/\bjson\b|base64.*json|json.*base64|data:image|inline|ref_assets|input_image|image\/images/i.test(rule)) return "json";
+    return "auto";
 }
 
 async function resolveConfiguredApiBaseUrl(baseUrl: string) {
@@ -521,9 +704,32 @@ function readSystemChannelId(baseUrl: string) {
 }
 
 function isQingyanApiBase(baseUrl: string) {
+    return matchesApiHost(baseUrl, "api2.qingyanzhiying.top");
+}
+
+function isJsonImageEditApiBase(baseUrl: string) {
+    return isQingyanApiBase(baseUrl) || isCode2AlitaApiBase(baseUrl);
+}
+
+function shouldUseSub2ApiImageEdit(config: ImageTaskConfig, apiBase: string) {
+    if (config.advancedConfig?.protocol === "sub2api") return true;
+    if (isCode2AlitaApiBase(apiBase)) return true;
+    const advanced = config.advancedConfig;
+    const requestTemplate = (advanced?.requestTemplate || "").toLowerCase();
+    const referenceRule = (advanced?.referenceRule || "").toLowerCase();
+    if (/\bsub2api\b/i.test(`${requestTemplate}\n${referenceRule}`)) return true;
+    return /\bimage_urls\b|images\[\]\.image_url|"images"\s*:\s*\[\s*\{\s*"image_url"|images\s*:\s*\[\s*\{\s*image_url/i.test(requestTemplate);
+}
+
+function isCode2AlitaApiBase(baseUrl: string) {
+    return matchesApiHost(baseUrl, "code2alita.com");
+}
+
+function matchesApiHost(baseUrl: string, hostname: string) {
     try {
         const host = new URL(baseUrl).hostname.toLowerCase();
-        return host === "api2.qingyanzhiying.top";
+        const target = hostname.toLowerCase();
+        return host === target || host.endsWith(`.${target}`);
     } catch {
         return false;
     }
@@ -565,7 +771,9 @@ function taskFetch(config: ImageTaskConfig, url: string, init: RequestInit) {
         ...init,
         signal: init.signal || AbortSignal.timeout(MODEL_REQUEST_TIMEOUT_MS),
     };
-    return isInternalApiBaseUrl(config.baseUrl) ? fetchInternalApi(url, nextInit) : fetch(url, nextInit);
+    if (!isInternalApiBaseUrl(config.baseUrl)) return fetch(url, nextInit);
+    if (typeof FormData !== "undefined" && nextInit.body instanceof FormData) return fetch(url, nextInit);
+    return fetchInternalApi(url, nextInit);
 }
 
 function geminiHeaders(config: ImageTaskConfig, cookie: string) {
@@ -780,9 +988,10 @@ function imageTaskPollUrls(requestUrl: string, taskId: string, explicitPollUrl =
 
 function resolveTaskMediaUrl(config: ImageTaskConfig, value: string, baseUrl: string) {
     if (/^(data|blob):/i.test(value)) return value;
-    if (!config.baseUrl.startsWith("/api/ai/system/")) return resolveGeneratedMediaUrl(value, baseUrl);
+    const remoteUrl = resolveGeneratedMediaUrl(value, baseUrl);
+    if (!config.baseUrl.startsWith("/api/ai/system/")) return remoteUrl;
     const proxyBase = config.baseUrl.trim().replace(/\/+$/, "");
-    return `${proxyBase}/_media?url=${encodeURIComponent(value)}`;
+    return `${proxyBase}/_media?url=${encodeURIComponent(remoteUrl)}`;
 }
 
 function shouldRetryInternalImageUrlAsBase64(result: ImageTaskResult) {
@@ -860,7 +1069,9 @@ function resolveProxiedMediaSource(value: string, origin: string) {
 function shouldFallbackToJsonImageEdit(status: number, message: string) {
     if (status === 404 || status === 405 || status === 415) return true;
     if (status !== 400 && status !== 422) return false;
-    return /multipart|form-?data|file upload|prompt.*required|required.*prompt|image url|image file|input image|reference image|invalid image|images\[\]|unsupported|not supported/i.test(message);
+    return /multipart|form-?data|file upload|prompt.*required|required.*prompt|image url|image file|input image|reference image|invalid image|images\[\]|unsupported|not supported|failed to parse request body|parse request body|invalid request body|request body.*(?:parse|invalid)|body.*(?:parse|invalid)|cannot parse/i.test(
+        message,
+    );
 }
 
 function shouldTryNextImageResponseFormat(responseFormat: (typeof IMAGE_RESPONSE_FORMATS)[number], status: number, message: string) {
@@ -871,15 +1082,18 @@ function shouldTryNextImageResponseFormat(responseFormat: (typeof IMAGE_RESPONSE
 }
 
 function shouldRetryJsonImageEditPayload(status: number, message: string) {
-    if (status === 400 || status === 422) return /image|images|image_url|input_image|reference|invalid type|unmarshal|deserialize|field/i.test(message);
-    return status >= 500 && /task[_ -]?id is empty|invalid_response|invalid type|unmarshal|deserialize/i.test(message);
+    if (status === 400 || status === 422)
+        return /image|images|image_url|input_image|reference|invalid type|unmarshal|deserialize|field|failed to parse request body|parse request body|invalid request body|request body.*(?:parse|invalid)|body.*(?:parse|invalid)|cannot parse/i.test(
+            message,
+        );
+    return false;
 }
 
 function shouldFallbackToResponsesImage(status: number, message: string) {
     if (status === 401 || status === 403 || status === 429) return false;
     if (status === 404 || status === 405 || status === 415) return true;
     if (status === 400 || status === 422) return /images\/generations|images\/edits|endpoint|route|not found|not implemented|no such|cannot post|unsupported|not supported/i.test(message);
-    return status >= 500 && /images\/generations|images\/edits|endpoint|route|not found|not implemented|no such|cannot post|unsupported|not supported/i.test(message);
+    return false;
 }
 
 function stringField(record: Record<string, unknown>, key: string) {
@@ -928,26 +1142,32 @@ async function buildImageEditFormData(task: ImageTask, quality: string | undefin
 }
 
 async function imageReferenceToFile(reference: ImageTaskReference, name: string, origin: string, cookie: string) {
-    const value = referenceRequestUrl(reference);
-    if (!value) throw new Error("参考图读取失败");
-    if (/^data:image\//i.test(value)) return dataUrlToFile(value, name, reference.type);
-    if (/^blob:/i.test(value)) throw new Error("参考图本地缓存已失效，请重新上传参考图");
-    const fetchUrl = value.startsWith("/") ? `${origin}${value}` : value;
-    if (!isRemoteMediaUrl(fetchUrl)) throw new Error("参考图地址无效，请重新上传参考图");
-    const response = await fetch(fetchUrl, {
-        headers: cookie && value.startsWith("/") ? { cookie } : undefined,
-        cache: "no-store",
-        signal: AbortSignal.timeout(INLINE_IMAGE_TIMEOUT_MS),
-    });
-    if (!response.ok || !response.body) throw new Error("参考图读取失败");
-    const contentLength = Number(response.headers.get("content-length") || 0);
-    if (contentLength > MAX_INLINE_IMAGE_BYTES) throw new Error("参考图过大，请压缩后重试");
-    const bytes = Buffer.from(await response.arrayBuffer());
-    if (!bytes.length) throw new Error("参考图读取失败");
-    if (bytes.length > MAX_INLINE_IMAGE_BYTES) throw new Error("参考图过大，请压缩后重试");
-    const mimeType = response.headers.get("content-type")?.split(";", 1)[0] || reference.type || "image/png";
-    if (!mimeType.startsWith("image/")) throw new Error("参考图不是有效图片");
-    return new File([bytes], name, { type: mimeType });
+    let lastError: unknown;
+    for (const value of rawReferenceRequestUrlCandidates(reference)) {
+        try {
+            if (/^data:image\//i.test(value)) return dataUrlToFile(value, name, reference.type);
+            if (/^blob:/i.test(value)) throw new Error("参考图本地缓存已失效，请重新上传参考图");
+            const fetchUrl = value.startsWith("/") ? `${origin}${value}` : value;
+            if (!isRemoteMediaUrl(fetchUrl)) throw new Error("参考图地址无效，请重新上传参考图");
+            const response = await fetch(fetchUrl, {
+                headers: cookie && value.startsWith("/") ? { cookie } : undefined,
+                cache: "no-store",
+                signal: AbortSignal.timeout(INLINE_IMAGE_TIMEOUT_MS),
+            });
+            if (!response.ok || !response.body) throw new Error("参考图读取失败");
+            const contentLength = Number(response.headers.get("content-length") || 0);
+            if (contentLength > MAX_INLINE_IMAGE_BYTES) throw new Error("参考图过大，请压缩后重试");
+            const bytes = Buffer.from(await response.arrayBuffer());
+            if (!bytes.length) throw new Error("参考图读取失败");
+            if (bytes.length > MAX_INLINE_IMAGE_BYTES) throw new Error("参考图过大，请压缩后重试");
+            const mimeType = response.headers.get("content-type")?.split(";", 1)[0] || reference.type || "image/png";
+            if (!mimeType.startsWith("image/")) throw new Error("参考图不是有效图片");
+            return new File([bytes], name, { type: mimeType });
+        } catch (error) {
+            lastError = error;
+        }
+    }
+    throw lastError instanceof Error ? lastError : new Error("参考图读取失败");
 }
 
 function dataUrlToFile(dataUrl: string, name: string, fallbackType?: string) {
@@ -962,6 +1182,12 @@ async function readFetchError(response: Response, fallback: string) {
     const text = await response.text();
     const statusText = `${fallback}，状态码 ${response.status}`;
     if (!text) return statusText;
+    if (/^\s*(?:<!doctype\s+html|<html\b)/i.test(text)) {
+        const upstreamUrl = response.headers.get("x-vozeb-upstream-url") || "";
+        const contentType = response.headers.get("content-type") || "";
+        const details = [upstreamUrl ? `地址 ${upstreamUrl}` : "", contentType ? `类型 ${contentType}` : ""].filter(Boolean).join("，");
+        return `${fallback}，上游返回了网页错误（HTTP ${response.status}${details ? `，${details}` : ""}），请检查接口路径、鉴权、参考图提交方式或网关状态`;
+    }
     try {
         const payload = JSON.parse(text) as { error?: { message?: string }; message?: string; msg?: string };
         return payload.msg || payload.message || payload.error?.message || statusText;

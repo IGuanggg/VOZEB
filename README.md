@@ -1,51 +1,33 @@
-<p align="center">
-  <img src="web/public/logo.svg?v=0.9.8-white" width="108" alt="VOZEB logo">
+﻿<p align="center">
+  <img src="web/public/logo.svg?v=0.9.9-white" width="108" alt="VOZEB logo">
 </p>
 
 <h1 align="center">VOZEB</h1>
 
 <p align="center">
   <a href="https://github.com/csyqlz/vozeb"><img src="https://img.shields.io/github/stars/csyqlz/vozeb?style=flat-square&logo=github" alt="GitHub stars"></a>
-  <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.9.8-2563eb?style=flat-square" alt="Version"></a>
+  <a href="VERSION"><img src="https://img.shields.io/badge/version-v0.9.9-2563eb?style=flat-square" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-f97316?style=flat-square" alt="License"></a>
   <a href="https://vercel.com/"><img src="https://img.shields.io/badge/Vercel-ready-000000?style=flat-square&logo=vercel" alt="Vercel ready"></a>
   <a href="https://nextjs.org/"><img src="https://img.shields.io/badge/Next.js-16.2-000000?style=flat-square&logo=nextdotjs" alt="Next.js"></a>
 </p>
 
 <p align="center">
-  演示站：<a href="https://www.vozeb.com">www.vozeb.com</a>
+  婕旂ず绔欙細<a href="https://www.vozeb.com">www.vozeb.com</a>
 </p>
 
-VOZEB 是一款面向 AI 图片创作、素材管理和视觉方案迭代的开源工作台。它把无限画布、AI 生成、参考图编辑、提示词库、素材沉淀、用户权限、管理员配置和本地 Agent 能力放到同一个工作流里，适合个人创作者、本地部署场景和小团队内部使用。
-
-VOZEB 当前版本为 `v0.9.8`，这是基于原创开源画布项目继续开发的二开版本。感谢原创作者 basketikun 对无限画布、AI 创作工作流、Canvas Agent 和 Codex 插件能力的开源贡献。
-
-版本更新记录请查看 [GitHub Releases](https://github.com/csyqlz/vozeb/releases)。
-
+VOZEB 鏄竴娆鹃潰鍚?AI 鍥剧墖鍒涗綔銆佺礌鏉愮鐞嗗拰瑙嗚鏂规杩唬鐨勫紑婧愬伐浣滃彴銆傚畠鎶婃棤闄愮敾甯冦€丄I 鐢熸垚銆佸弬鑰冨浘缂栬緫銆佹彁绀鸿瘝搴撱€佺礌鏉愭矇娣€銆佺敤鎴锋潈闄愩€佺鐞嗗憳閰嶇疆鍜屾湰鍦?Agent 鑳藉姏鏀惧埌鍚屼竴涓伐浣滄祦閲岋紝閫傚悎涓汉鍒涗綔鑰呫€佹湰鍦伴儴缃插満鏅拰灏忓洟闃熷唴閮ㄤ娇鐢ㄣ€?
+VOZEB 褰撳墠鐗堟湰涓?`v0.9.9`锛岃繖鏄熀浜庡師鍒涘紑婧愮敾甯冮」鐩户缁紑鍙戠殑浜屽紑鐗堟湰銆傛劅璋㈠師鍒涗綔鑰?basketikun 瀵规棤闄愮敾甯冦€丄I 鍒涗綔宸ヤ綔娴併€丆anvas Agent 鍜?Codex 鎻掍欢鑳藉姏鐨勫紑婧愯础鐚€?
+鐗堟湰鏇存柊璁板綍璇锋煡鐪?[GitHub Releases](https://github.com/csyqlz/vozeb/releases)銆?
 > [!CAUTION]
-> 项目仍处于快速开发阶段，不保证历史数据兼容。当前更适合个人或本地部署，不建议直接公网多人共用。
+> 椤圭洰浠嶅浜庡揩閫熷紑鍙戦樁娈碉紝涓嶄繚璇佸巻鍙叉暟鎹吋瀹广€傚綋鍓嶆洿閫傚悎涓汉鎴栨湰鍦伴儴缃诧紝涓嶅缓璁洿鎺ュ叕缃戝浜哄叡鐢ㄣ€?
+## 鍔熻兘鎬昏
 
-## 功能总览
+- 鏃犻檺鐢诲竷锛氬鐢诲竷椤圭洰銆佽妭鐐规嫋鎷界缉鏀俱€佽繛绾裤€佸皬鍦板浘銆佹挙閿€閲嶅仛銆佸鍏ュ鍑恒€?- AI 鍥剧墖鍒涗綔锛氭敮鎸佹枃鐢熷浘銆佸浘鐢熷浘銆佸弬鑰冨浘缂栬緫銆佸浘鐗囧弽鎺ㄦ彁绀鸿瘝銆佸浘鐗囧垏鍥俱€佸眬閮ㄨ挋鐗堜慨鏀瑰拰鍥剧墖鏀惧ぇ锛涘浘鐗囧伐浣滃彴鏀寔鎸夌敓鎴愯褰曚繚鐣欑粨鏋溿€佸悓璁板綍杩藉姞鐢熸垚銆佸け璐ラ噸璇曘€佷换鍔¤疆璇㈢画鍙栥€佺粨鏋滃嬀閫夊垹闄ゃ€佷涪澶卞浘鐗囨竻鐞嗐€佽褰曟爣棰橀噸鍛藉悕銆佸浘鐗囦笁灞傚厹搴曡闂€佸紓姝?`task_id` 鐢熷浘鎺ュ彛鍏煎鍜屾瘡鐢ㄦ埛骞跺彂鐢熸垚涓婇檺銆?- 闊抽涓庤棰戯細鏀寔闊抽鑺傜偣銆佽棰戠敓鎴愩€佸０闊?姘村嵃閰嶇疆锛屼互鍙婂浘鐗囥€佽棰戙€侀煶棰戝弬鑰冭緭鍏ワ紱瑙嗛宸ヤ綔鍙版敮鎸佹寜鐢ㄦ埛骞跺彂涓婇檺鍚屾椂鐢熸垚澶氭潯璁板綍銆佷繚鐣欒疆璇㈢姸鎬併€佸け璐ラ噸璇曞鐢ㄥ綋鍓嶈褰曘€佸吋瀹?`/video/generations` 寮傛瑙嗛鍗忚锛屽苟鏀寔瑙嗛缁撴灉涓夊眰鍏滃簳璁块棶銆?- 鐢诲竷鍔╂墜锛氬洿缁曢€変腑鑺傜偣鍜屼笂娓歌妭鐐瑰璇濄€佺敓鍥撅紝骞舵妸缁撴灉鎻掑洖褰撳墠鐢诲竷銆?- 鎻愮ず璇嶅簱锛氭敮鎸佸叕鍏辨彁绀鸿瘝搴撱€佹垜鐨勬彁绀鸿瘝銆佹爣绛俱€佸垎绫汇€佸皝闈㈠拰鎻愮ず璇嶇礌鏉愭矇娣€锛涚鐞嗗憳鍏叡鎻愮ず璇嶄細閲囬泦鍘熶綔鑰呮帴鍏ョ殑杩滅▼鎻愮ず璇嶆簮锛屽苟鍙繚鐣欏彲璁块棶鐨勮繙绋嬪浘鐗?URL銆傚悗鍙板叕鍏辨彁绀鸿瘝绠＄悊鏀寔鍒嗛〉鎼滅储銆佸閫夊拰鎵归噺鍒犻櫎锛屾墜鏈虹浼氫娇鐢ㄥ崱鐗囧竷灞€閬垮厤琛ㄦ牸婧㈠嚭銆?- 绱犳潗绠＄悊锛氭敮鎸佸浘鐗囥€佹枃鏈€佽棰戠瓑绱犳潗淇濆瓨銆佸鐢ㄣ€佸鍏ュ鍑哄拰鐢辩鐞嗗憳鍚庡彴缁熶竴鎺ュ叆鐨?WebDAV 鍚屾銆?- 鐢ㄦ埛绯荤粺锛氭敮鎸佽处鍙峰瘑鐮佹敞鍐岀櫥褰曘€侀偖绠辨敞鍐屽紑鍏炽€丼MTP 閭鏈嶅姟閰嶇疆銆佺鐞嗗憳鍚庡彴銆佺敤鎴疯鑹层€佽处鍙风姸鎬併€佺Н鍒嗕綑棰濆拰绛惧埌濂栧姳銆?- 绉垎涓庡叕鍛婏細鏀寔绛惧埌銆佺Н鍒嗘祦姘淬€佸墠绔?CDK 鍏戞崲鍏ュ彛銆佸悗鍙伴殢鏈虹敓鎴?CDK銆佸鍒跺鍑恒€佸厬鎹㈡槑缁嗗拰瀵嗛挜鍒犻櫎锛涚綉绔欏叕鍛婃敮鎸佸叕鍛婂垪琛ㄣ€侀椤靛脊绐楁彁閱掑拰鐧诲綍鍚庡脊绐楁彁閱掋€?- 绠＄悊鍚庡彴锛氭敮鎸佺敤鎴枫€佺綉绔欍€佺郴缁熸帴鍙ｃ€佹彁绀鸿瘝搴撱€丆DK銆佺綉绔欏叕鍛娿€佹暟鎹浠藉鍏ャ€佺敓鎴愭棩蹇楀拰鐢熸垚璧勬簮绠＄悊锛涚敓鎴愭棩蹇楀彲鏌ョ湅鎵€鏈夌敤鎴风殑鍥剧墖/瑙嗛璁板綍銆佹彁绀鸿瘝銆佸叆鍙ｆ潵婧愩€佹ā鍨嬨€佺姸鎬併€佽€楁椂銆佺粨鏋滈瑙堛€丄PI 杩滅▼鍦板潃鍜屾湇鍔″櫒鍏滃簳鍦板潃锛屽苟鏀寔鎼滅储銆佹棩鏈熺瓫閫夈€佸叏閫変笌鍒犻櫎锛涚敓鎴愯祫婧愬彲缁熻鏈湴棰勮鍗犵敤銆佷涪澶卞紩鐢ㄥ拰鏈紩鐢ㄦ枃浠讹紝骞跺畨鍏ㄦ竻鐞嗕笉鍐嶈鏃ュ織浣跨敤鐨勮祫婧愩€?- 閫氱敤鎺ュ彛锛氱鐞嗗憳鍙厤缃?OpenAI 鍏煎鎺ュ彛銆佺郴缁熸ā鍨嬫笭閬撱€侀粯璁ゆā鍨嬨€佹瘡鐢ㄦ埛鍥剧墖/瑙嗛骞跺彂涓婇檺銆佸浘鐗?瑙嗛鏈嶅姟鍣ㄥ厹搴曞紑鍏炽€佸浘鐗?瑙嗛涓嬭浇淇濆瓨寮€鍏筹紱鐢ㄦ埛绔笉鍐嶆樉绀烘帴鍙ｉ厤缃紝涔熶笉浼氭毚闇茬湡瀹炰笂娓?Base URL 鎴?API Key銆?- 鏈湴 Agent锛氶€氳繃鏈満 Canvas Agent 杩炴帴 Codex / Claude Code锛岃 Agent 閫氳繃 MCP 鎿嶄綔褰撳墠鐢诲竷銆?- Codex App 鎻掍欢锛氭彁渚?Codex app 鎻掍欢锛屽畨瑁呭悗鍙嚜鍔ㄦ敞鍐?MCP 骞跺皾璇曟媺璧锋湰鍦?Agent銆?- 鐗堟湰鏇存柊锛氱鐞嗗憳鍙充笂瑙掔増鏈叆鍙ｅ彲鏌ョ湅鏇存柊璁板綍锛屽苟浠?`csyqlz/vozeb` 妫€鏌ユ渶鏂扮増鏈紱鏅€氱敤鎴风闅愯棌 GitHub 鍜岀増鏈叆鍙ｃ€?
+## 浣跨敤鏁欑▼
 
-- 无限画布：多画布项目、节点拖拽缩放、连线、小地图、撤销重做、导入导出。
-- AI 图片创作：支持文生图、图生图、参考图编辑、图片反推提示词、图片切图、局部蒙版修改和图片放大；图片工作台支持按生成记录保留结果、同记录追加生成、失败重试、任务轮询续取、结果勾选删除、丢失图片清理、记录标题重命名、图片三层兜底访问、异步 `task_id` 生图接口兼容和每用户并发生成上限。
-- 音频与视频：支持音频节点、视频生成、声音/水印配置，以及图片、视频、音频参考输入；视频工作台支持按用户并发上限同时生成多条记录、保留轮询状态、失败重试复用当前记录、兼容 `/video/generations` 异步视频协议，并支持视频结果三层兜底访问。
-- 画布助手：围绕选中节点和上游节点对话、生图，并把结果插回当前画布。
-- 提示词库：支持公共提示词库、我的提示词、标签、分类、封面和提示词素材沉淀；管理员公共提示词会采集原作者接入的远程提示词源，并只保留可访问的远程图片 URL。后台公共提示词管理支持分页搜索、多选和批量删除，手机端会使用卡片布局避免表格溢出。
-- 素材管理：支持图片、文本、视频等素材保存、复用、导入导出和由管理员后台统一接入的 WebDAV 同步。
-- 用户系统：支持账号密码注册登录、邮箱注册开关、SMTP 邮箱服务配置、管理员后台、用户角色、账号状态、积分余额和签到奖励。
-- 积分与公告：支持签到、积分流水、前端 CDK 兑换入口、后台随机生成 CDK、复制导出、兑换明细和密钥删除；网站公告支持公告列表、首页弹窗提醒和登录后弹窗提醒。
-- 管理后台：支持用户、网站、系统接口、提示词库、CDK、网站公告、数据备份导入、生成日志和生成资源管理；生成日志可查看所有用户的图片/视频记录、提示词、入口来源、模型、状态、耗时、结果预览、API 远程地址和服务器兜底地址，并支持搜索、日期筛选、全选与删除；生成资源可统计本地预览占用、丢失引用和未引用文件，并安全清理不再被日志使用的资源。
-- 通用接口：管理员可配置 OpenAI 兼容接口、系统模型渠道、默认模型、每用户图片/视频并发上限、图片/视频服务器兜底开关、图片/视频下载保存开关；用户端不再显示接口配置，也不会暴露真实上游 Base URL 或 API Key。
-- 本地 Agent：通过本机 Canvas Agent 连接 Codex / Claude Code，让 Agent 通过 MCP 操作当前画布。
-- Codex App 插件：提供 Codex app 插件，安装后可自动注册 MCP 并尝试拉起本地 Agent。
-- 版本更新：管理员右上角版本入口可查看更新记录，并从 `csyqlz/vozeb` 检查最新版本；普通用户端隐藏 GitHub 和版本入口。
-
-## 使用教程
-
-### 1. 低配服务器部署
-
-0.5G 到 2G 内存服务器建议使用发布镜像，不在服务器现场构建源码：
+### 1. 浣庨厤鏈嶅姟鍣ㄩ儴缃?
+0.5G 鍒?2G 鍐呭瓨鏈嶅姟鍣ㄥ缓璁娇鐢ㄥ彂甯冮暅鍍忥紝涓嶅湪鏈嶅姟鍣ㄧ幇鍦烘瀯寤烘簮鐮侊細
 
 ```bash
 git clone https://github.com/csyqlz/vozeb.git
@@ -54,74 +36,54 @@ docker compose pull
 docker compose up -d
 ```
 
-默认 `docker-compose.yml` 使用 `ghcr.io/csyqlz/vozeb:latest`，只会拉取预构建镜像并启动容器，不会执行 `next build`。账号、后台设置、签到记录和公共提示词会保存在 `vozeb-data` 数据卷里。
+榛樿 `docker-compose.yml` 浣跨敤 `ghcr.io/csyqlz/vozeb:latest`锛屽彧浼氭媺鍙栭鏋勫缓闀滃儚骞跺惎鍔ㄥ鍣紝涓嶄細鎵ц `next build`銆傝处鍙枫€佸悗鍙拌缃€佺鍒拌褰曞拰鍏叡鎻愮ず璇嶄細淇濆瓨鍦?`vozeb-data` 鏁版嵁鍗烽噷銆?
+### 2. 棣栨鍒濆鍖?
+鎵撳紑 `http://鏈嶅姟鍣↖P:3000`锛岀涓€娆℃敞鍐岀殑璐﹀彿浼氳嚜鍔ㄦ垚涓虹鐞嗗憳銆傝繖涓涓鐞嗗憳璐﹀彿鐢ㄤ簬鍒濆鍖栫珯鐐癸紝绠＄悊鍛樼櫥褰曞悗鍙繘鍏?`绠＄悊鍛樺悗鍙癭锛岄厤缃綉绔欐爣棰樸€丩ogo銆丼EO銆佹敞鍐岀瓥鐣ャ€侀偖绠辨湇鍔°€佹ā鍨嬫笭閬撱€侀粯璁ゆā鍨嬨€佺敤鎴风Н鍒嗗拰鍏叡鎻愮ず璇嶅簱銆?
+濡傛灉浣跨敤 `http://鏈嶅姟鍣↖P:3000` 鐩磋繛璁块棶锛岀櫥褰?Cookie 浼氭寜 HTTP 妯″紡鍐欏叆锛涘鏋滈€氳繃 HTTPS 鍙嶅悜浠ｇ悊璁块棶锛屽弽浠ｉ渶瑕佷繚鐣?`X-Forwarded-Proto: https`锛孷OZEB 浼氳嚜鍔ㄥ啓鍏ュ畨鍏?Cookie銆傛瀬灏戞暟浠ｇ悊鐜鍒ゆ柇寮傚父鏃讹紝鍙敤 `VOZEB_COOKIE_SECURE=true` 鎴?`VOZEB_COOKIE_SECURE=false` 寮哄埗 Cookie 妯″紡銆?
+### 3. 閰嶇疆榛樿妯″瀷娓犻亾
 
-### 2. 首次初始化
-
-打开 `http://服务器IP:3000`，第一次注册的账号会自动成为管理员。这个首个管理员账号用于初始化站点，管理员登录后可进入 `管理员后台`，配置网站标题、Logo、SEO、注册策略、邮箱服务、模型渠道、默认模型、用户积分和公共提示词库。
-
-如果使用 `http://服务器IP:3000` 直连访问，登录 Cookie 会按 HTTP 模式写入；如果通过 HTTPS 反向代理访问，反代需要保留 `X-Forwarded-Proto: https`，VOZEB 会自动写入安全 Cookie。极少数代理环境判断异常时，可用 `VOZEB_COOKIE_SECURE=true` 或 `VOZEB_COOKIE_SECURE=false` 强制 Cookie 模式。
-
-### 3. 配置默认模型渠道
-
-进入 `管理员后台 -> 系统设置 -> 模型渠道`，填写你的 OpenAI 兼容接口或 Gemini 接口 `Base URL`、`API Key`、模型名称，并启用默认渠道。默认渠道由服务端代理请求，用户前端不会看到管理员保存的 API Key。
-
-如果部署后生图、视频或画布生成全部提示 `fetch failed`，通常是服务器无法访问模型接口，或容器/反向代理无法从服务端回调自己的公网域名。请按下面顺序检查：
+杩涘叆 `绠＄悊鍛樺悗鍙?-> 绯荤粺璁剧疆 -> 妯″瀷娓犻亾`锛屽～鍐欎綘鐨?OpenAI 鍏煎鎺ュ彛鎴?Gemini 鎺ュ彛 `Base URL`銆乣API Key`銆佹ā鍨嬪悕绉帮紝骞跺惎鐢ㄩ粯璁ゆ笭閬撱€傞粯璁ゆ笭閬撶敱鏈嶅姟绔唬鐞嗚姹傦紝鐢ㄦ埛鍓嶇涓嶄細鐪嬪埌绠＄悊鍛樹繚瀛樼殑 API Key銆?
+濡傛灉閮ㄧ讲鍚庣敓鍥俱€佽棰戞垨鐢诲竷鐢熸垚鍏ㄩ儴鎻愮ず `fetch failed`锛岄€氬父鏄湇鍔″櫒鏃犳硶璁块棶妯″瀷鎺ュ彛锛屾垨瀹瑰櫒/鍙嶅悜浠ｇ悊鏃犳硶浠庢湇鍔＄鍥炶皟鑷繁鐨勫叕缃戝煙鍚嶃€傝鎸変笅闈㈤『搴忔鏌ワ細
 
 ```bash
-# 1. 容器内确认 VOZEB 可以回调自己的站内代理
-docker compose exec app sh -lc 'echo $VOZEB_INTERNAL_ORIGIN'
+# 1. 瀹瑰櫒鍐呯‘璁?VOZEB 鍙互鍥炶皟鑷繁鐨勭珯鍐呬唬鐞?docker compose exec app sh -lc 'echo $VOZEB_INTERNAL_ORIGIN'
 
-# 2. 默认值建议保持为容器内部地址
+# 2. 榛樿鍊煎缓璁繚鎸佷负瀹瑰櫒鍐呴儴鍦板潃
 VOZEB_INTERNAL_ORIGIN=http://127.0.0.1:3000
 
-# 3. 如果模型接口需要代理，给容器补充代理变量
-HTTPS_PROXY=http://127.0.0.1:7890
+# 3. 濡傛灉妯″瀷鎺ュ彛闇€瑕佷唬鐞嗭紝缁欏鍣ㄨˉ鍏呬唬鐞嗗彉閲?HTTPS_PROXY=http://127.0.0.1:7890
 HTTP_PROXY=http://127.0.0.1:7890
 ALL_PROXY=http://127.0.0.1:7890
 ```
 
-`docker-compose.yml` 和低内存 compose 已默认写入 `VOZEB_INTERNAL_ORIGIN=http://127.0.0.1:3000`。如果你的服务不是 3000 端口，请改成实际内部端口。Base URL 请填写模型服务商提供的地址，例如 `https://api.example.com/v1`；不要填写 VOZEB 自己的访问地址。
+`docker-compose.yml` 鍜屼綆鍐呭瓨 compose 宸查粯璁ゅ啓鍏?`VOZEB_INTERNAL_ORIGIN=http://127.0.0.1:3000`銆傚鏋滀綘鐨勬湇鍔′笉鏄?3000 绔彛锛岃鏀规垚瀹為檯鍐呴儴绔彛銆侭ase URL 璇峰～鍐欐ā鍨嬫湇鍔″晢鎻愪緵鐨勫湴鍧€锛屼緥濡?`https://api.example.com/v1`锛涗笉瑕佸～鍐?VOZEB 鑷繁鐨勮闂湴鍧€銆?
+OpenAI 鍏煎涓婃父鐨勫浘鐗囨帴鍙ｅ鏋滃厛杩斿洖 `task_id`锛孷OZEB 浼氱户缁煡璇?`/images/generations/:task_id`锛岀洿鍒版垚鍔熴€佸け璐ユ垨瓒呮椂銆傝棰戞帴鍙ｄ細浼樺厛浣跨敤鍘熸湁 `/videos` 鍗忚锛涘綋涓婃父鎻愮ず璺敱涓嶅瓨鍦ㄦ垨涓嶆敮鎸佹椂锛屼細鑷姩鍥為€€鍒?`/video/generations`銆乣/videos/generations` 寮傛浠诲姟鍗忚銆傚浘鐗囧拰瑙嗛缁撴灉濡傛灉杩斿洖鐩稿鍦板潃锛屼細閫氳繃褰撳墠绯荤粺娓犻亾鐨勫唴閮ㄥ獟浣撲唬鐞嗚闂紝閬垮厤鍓嶇璇闂湰绔欒矾寰勶紱濡傛灉涓婃父杩斿洖鍏紑 HTTP/HTTPS CDN 鍦板潃锛岀郴缁熷獟浣撲唬鐞嗕篃浼氫綔涓哄厹搴曡浆鍙戯紝浣嗕笉鍚屾簮鍏紑濯掍綋涓嶄細鎼哄甫绠＄悊鍛樹繚瀛樼殑绯荤粺 API Key銆傞€氳繃绯荤粺濯掍綋浠ｇ悊缂撳瓨鏈湴 base64 鏃讹紝鐢熸垚鏃ュ織浠嶄細淇濈暀鍘熷 API 杩滅▼缁撴灉鍦板潃锛屾柟渚垮悗鍙版牳瀵规帴鍙ｈ繑鍥炴潵婧愩€傝棰戜唬鐞嗕細淇濈暀 `Range`銆乣Content-Range`銆乣Accept-Ranges` 绛夊ご锛屼繚璇佹湇鍔″櫒閮ㄧ讲鍚庢祻瑙堝櫒鍒嗘鎾斁绋冲畾銆?
+鐢诲竷閲岀殑鍥剧墖鍙嶆帹鎻愮ず璇嶄細鍏堟妸鏈湴缂撳瓨鍥俱€佽繙绋嬪浘鎴栫郴缁熶唬鐞嗗浘杞垚 `data:image/...;base64,...` 鍐嶆彁浜ょ粰鏂囨湰妯″瀷銆備笂娓告敮鎸?`/responses` 鏃朵細浼樺厛浣跨敤 Responses 杈撳叆鍥惧崗璁紱涓嶆敮鎸佹椂浼氳嚜鍔ㄥ洖閫€鍒?`/chat/completions`锛屽埛鏂伴〉闈㈠悗浠嶅彲閫氳繃鏂囨湰浠诲姟杞缁х画鎷跨粨鏋滐紝閬垮厤鏈嶅姟鍣ㄩ儴缃插悗鍙嶆帹鎸夐挳涓€鐩磋浆鍦堛€?
+### 4. 閰嶇疆閭娉ㄥ唽
 
-OpenAI 兼容上游的图片接口如果先返回 `task_id`，VOZEB 会继续查询 `/images/generations/:task_id`，直到成功、失败或超时。视频接口会优先使用原有 `/videos` 协议；当上游提示路由不存在或不支持时，会自动回退到 `/video/generations`、`/videos/generations` 异步任务协议。图片和视频结果如果返回相对地址，会通过当前系统渠道的内部媒体代理访问，避免前端误访问本站路径；如果上游返回公开 HTTP/HTTPS CDN 地址，系统媒体代理也会作为兜底转发，但不同源公开媒体不会携带管理员保存的系统 API Key。通过系统媒体代理缓存本地 base64 时，生成日志仍会保留原始 API 远程结果地址，方便后台核对接口返回来源。视频代理会保留 `Range`、`Content-Range`、`Accept-Ranges` 等头，保证服务器部署后浏览器分段播放稳定。
-
-画布里的图片反推提示词会先把本地缓存图、远程图或系统代理图转成 `data:image/...;base64,...` 再提交给文本模型。上游支持 `/responses` 时会优先使用 Responses 输入图协议；不支持时会自动回退到 `/chat/completions`，刷新页面后仍可通过文本任务轮询继续拿结果，避免服务器部署后反推按钮一直转圈。
-
-### 4. 配置邮箱注册
-
-进入 `管理员后台 -> 系统设置 -> 账号策略` 打开“邮箱注册”。再进入同页的“邮箱服务”填写 SMTP：
-
+杩涘叆 `绠＄悊鍛樺悗鍙?-> 绯荤粺璁剧疆 -> 璐﹀彿绛栫暐` 鎵撳紑鈥滈偖绠辨敞鍐屸€濄€傚啀杩涘叆鍚岄〉鐨勨€滈偖绠辨湇鍔♀€濆～鍐?SMTP锛?
 ```text
-QQ 邮箱：smtp.qq.com / 465 / SSL 开启
-网易邮箱：填写网易提供的 SMTP、端口和授权码
-企业邮箱：填写服务商提供的 SMTP、端口、SSL 和授权码
+QQ 閭锛歴mtp.qq.com / 465 / SSL 寮€鍚?缃戞槗閭锛氬～鍐欑綉鏄撴彁渚涚殑 SMTP銆佺鍙ｅ拰鎺堟潈鐮?浼佷笟閭锛氬～鍐欐湇鍔″晢鎻愪緵鐨?SMTP銆佺鍙ｃ€丼SL 鍜屾巿鏉冪爜
 ```
 
-保存前可以点击“测试邮箱”。测试成功后，普通用户注册必须获取 6 位邮箱验证码；未验证邮箱不能直接创建账号。忘记密码和修改绑定邮箱也会复用这套 SMTP。
-
-### 5. 用户与账号管理
-
-普通用户和管理员都可以从右上角账号菜单进入 `个人资料`，修改昵称、绑定邮箱和登录密码。管理员可在后台 `用户管理` 中修改用户昵称、邮箱、角色、状态、积分余额，必要时重置用户密码或删除用户。系统会阻止删除当前管理员和最后一个管理员，避免后台被锁死。
-
-### 6. 管理员忘记密码
-
-如果管理员还能登录后台，建议直接在 `管理员后台 -> 用户管理` 里重置密码。如果所有管理员都忘记密码，可以在服务器终端使用离线脚本修改 `.data/auth.json` 中指定管理员的密码哈希。脚本必须明确指定 `--username`、`--email` 或 `--id`，不会自动选择账号；写入前会先备份当前账号数据库到 `.data/restore-backups`，密码重置备份只保留最近 3 份，避免长期占用空间；脚本不会删除用户、提示词、生成日志或素材。
-
-本地源码部署时，在 `web` 目录执行：
-
+淇濆瓨鍓嶅彲浠ョ偣鍑烩€滄祴璇曢偖绠扁€濄€傛祴璇曟垚鍔熷悗锛屾櫘閫氱敤鎴锋敞鍐屽繀椤昏幏鍙?6 浣嶉偖绠遍獙璇佺爜锛涙湭楠岃瘉閭涓嶈兘鐩存帴鍒涘缓璐﹀彿銆傚繕璁板瘑鐮佸拰淇敼缁戝畾閭涔熶細澶嶇敤杩欏 SMTP銆?
+### 5. 鐢ㄦ埛涓庤处鍙风鐞?
+鏅€氱敤鎴峰拰绠＄悊鍛橀兘鍙互浠庡彸涓婅璐﹀彿鑿滃崟杩涘叆 `涓汉璧勬枡`锛屼慨鏀规樀绉般€佺粦瀹氶偖绠卞拰鐧诲綍瀵嗙爜銆傜鐞嗗憳鍙湪鍚庡彴 `鐢ㄦ埛绠＄悊` 涓慨鏀圭敤鎴锋樀绉般€侀偖绠便€佽鑹层€佺姸鎬併€佺Н鍒嗕綑棰濓紝蹇呰鏃堕噸缃敤鎴峰瘑鐮佹垨鍒犻櫎鐢ㄦ埛銆傜郴缁熶細闃绘鍒犻櫎褰撳墠绠＄悊鍛樺拰鏈€鍚庝竴涓鐞嗗憳锛岄伩鍏嶅悗鍙拌閿佹銆?
+### 6. 绠＄悊鍛樺繕璁板瘑鐮?
+濡傛灉绠＄悊鍛樿繕鑳界櫥褰曞悗鍙帮紝寤鸿鐩存帴鍦?`绠＄悊鍛樺悗鍙?-> 鐢ㄦ埛绠＄悊` 閲岄噸缃瘑鐮併€傚鏋滄墍鏈夌鐞嗗憳閮藉繕璁板瘑鐮侊紝鍙互鍦ㄦ湇鍔″櫒缁堢浣跨敤绂荤嚎鑴氭湰淇敼 `.data/auth.json` 涓寚瀹氱鐞嗗憳鐨勫瘑鐮佸搱甯屻€傝剼鏈繀椤绘槑纭寚瀹?`--username`銆乣--email` 鎴?`--id`锛屼笉浼氳嚜鍔ㄩ€夋嫨璐﹀彿锛涘啓鍏ュ墠浼氬厛澶囦唤褰撳墠璐﹀彿鏁版嵁搴撳埌 `.data/restore-backups`锛屽瘑鐮侀噸缃浠藉彧淇濈暀鏈€杩?3 浠斤紝閬垮厤闀挎湡鍗犵敤绌洪棿锛涜剼鏈笉浼氬垹闄ょ敤鎴枫€佹彁绀鸿瘝銆佺敓鎴愭棩蹇楁垨绱犳潗銆?
+鏈湴婧愮爜閮ㄧ讲鏃讹紝鍦?`web` 鐩綍鎵ц锛?
 ```bash
 cd web
 pnpm run reset:admin-password -- --username admin --password "NewPass123!"
 ```
 
-Docker Compose 部署时，在项目根目录执行：
-
+Docker Compose 閮ㄧ讲鏃讹紝鍦ㄩ」鐩牴鐩綍鎵ц锛?
 ```bash
 docker compose exec app node /app/web/scripts/reset-admin-password.mjs --username admin --password "NewPass123!"
 docker compose restart app
 ```
 
-如果忘记管理员用户名，可以先列出管理员账号：
+濡傛灉蹇樿绠＄悊鍛樼敤鎴峰悕锛屽彲浠ュ厛鍒楀嚭绠＄悊鍛樿处鍙凤細
 
 ```bash
 cd web
@@ -129,142 +91,113 @@ pnpm run reset:admin-password -- --list-admins
 docker compose exec app node /app/web/scripts/reset-admin-password.mjs --list-admins
 ```
 
-如果使用了自定义数据目录，手动指定数据目录即可：
+濡傛灉浣跨敤浜嗚嚜瀹氫箟鏁版嵁鐩綍锛屾墜鍔ㄦ寚瀹氭暟鎹洰褰曞嵆鍙細
 
 ```bash
 cd web
 pnpm run reset:admin-password -- --data-dir "/path/to/.data" --username admin --password "NewPass123!"
 ```
 
-命令完成后，用新密码重新登录。旧登录会话会被清理，已经登录的该管理员需要重新登录。
-
-### 7. 首页 Footer 和社交媒体
-
-进入 `管理员后台 -> 网站设置 -> 首页收尾与社交媒体`，可以配置首页底部内容：
+鍛戒护瀹屾垚鍚庯紝鐢ㄦ柊瀵嗙爜閲嶆柊鐧诲綍銆傛棫鐧诲綍浼氳瘽浼氳娓呯悊锛屽凡缁忕櫥褰曠殑璇ョ鐞嗗憳闇€瑕侀噸鏂扮櫥褰曘€?
+### 7. 棣栭〉 Footer 鍜岀ぞ浜ゅ獟浣?
+杩涘叆 `绠＄悊鍛樺悗鍙?-> 缃戠珯璁剧疆 -> 棣栭〉鏀跺熬涓庣ぞ浜ゅ獟浣揱锛屽彲浠ラ厤缃椤靛簳閮ㄥ唴瀹癸細
 
 ```text
-版权所有：显示在首页 Footer 左侧
-使用条款链接：默认 /terms，也可以填写外部 URL
-隐私政策链接：默认 /privacy，也可以填写外部 URL
-邮箱联系：默认开启，支持 mailto: 邮箱链接
-Telegram：默认开启，可填写频道或联系人链接
-X：默认开启，可填写 X 主页链接
-Instagram：默认开启，可填写 Instagram 主页链接
+鐗堟潈鎵€鏈夛細鏄剧ず鍦ㄩ椤?Footer 宸︿晶
+浣跨敤鏉℃閾炬帴锛氶粯璁?/terms锛屼篃鍙互濉啓澶栭儴 URL
+闅愮鏀跨瓥閾炬帴锛氶粯璁?/privacy锛屼篃鍙互濉啓澶栭儴 URL
+閭鑱旂郴锛氶粯璁ゅ紑鍚紝鏀寔 mailto: 閭閾炬帴
+Telegram锛氶粯璁ゅ紑鍚紝鍙～鍐欓閬撴垨鑱旂郴浜洪摼鎺?X锛氶粯璁ゅ紑鍚紝鍙～鍐?X 涓婚〉閾炬帴
+Instagram锛氶粯璁ゅ紑鍚紝鍙～鍐?Instagram 涓婚〉閾炬帴
 ```
 
-每个社交媒体都有单独的显示开关。关闭后首页 Footer 不会显示该入口。
+姣忎釜绀句氦濯掍綋閮芥湁鍗曠嫭鐨勬樉绀哄紑鍏炽€傚叧闂悗棣栭〉 Footer 涓嶄細鏄剧ず璇ュ叆鍙ｃ€?
+### 8. 鏇存柊鐗堟湰
 
-### 8. 更新版本
-
-低配服务器更新只需要拉取新镜像并重启：
+浣庨厤鏈嶅姟鍣ㄦ洿鏂板彧闇€瑕佹媺鍙栨柊闀滃儚骞堕噸鍚細
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-不要执行 `docker compose down -v`，否则会删除 `vozeb-data` 数据卷。容器默认使用 `VOZEB_DATA_DIR=/app/web/.data`，本地 standalone 预览也会自动把数据库放回 `web/.data`，不会写进 `.next/standalone` 构建产物。升级前也可以在管理员后台概览点击“备份用户数据库”，下载 `.data/auth.json`、`.data/prompts.json` 和 `.data/generation-logs.json` 留底；需要迁移回新服务器时可用“导入数据库”恢复备份，导入前会自动把当前数据快照保存到 `.data/restore-backups`，导入快照只保留最近 3 份。生成日志预览资源保存在 `.data/generation-assets`，随数据卷保留；后台概览可清理未被日志引用的本地预览文件，减少长期占用。
+涓嶈鎵ц `docker compose down -v`锛屽惁鍒欎細鍒犻櫎 `vozeb-data` 鏁版嵁鍗枫€傚鍣ㄩ粯璁や娇鐢?`VOZEB_DATA_DIR=/app/web/.data`锛屾湰鍦?standalone 棰勮涔熶細鑷姩鎶婃暟鎹簱鏀惧洖 `web/.data`锛屼笉浼氬啓杩?`.next/standalone` 鏋勫缓浜х墿銆傚崌绾у墠涔熷彲浠ュ湪绠＄悊鍛樺悗鍙版瑙堢偣鍑烩€滃浠界敤鎴锋暟鎹簱鈥濓紝涓嬭浇 `.data/auth.json`銆乣.data/prompts.json` 鍜?`.data/generation-logs.json` 鐣欏簳锛涢渶瑕佽縼绉诲洖鏂版湇鍔″櫒鏃跺彲鐢ㄢ€滃鍏ユ暟鎹簱鈥濇仮澶嶅浠斤紝瀵煎叆鍓嶄細鑷姩鎶婂綋鍓嶆暟鎹揩鐓т繚瀛樺埌 `.data/restore-backups`锛屽鍏ュ揩鐓у彧淇濈暀鏈€杩?3 浠姐€傜敓鎴愭棩蹇楅瑙堣祫婧愪繚瀛樺湪 `.data/generation-assets`锛岄殢鏁版嵁鍗蜂繚鐣欙紱鍚庡彴姒傝鍙竻鐞嗘湭琚棩蹇楀紩鐢ㄧ殑鏈湴棰勮鏂囦欢锛屽噺灏戦暱鏈熷崰鐢ㄣ€?
+### 9. 鐢熸垚缁撴灉涓夊眰鍏滃簳涓庢湇鍔″櫒淇濆瓨瑙勫垯
 
-### 9. 生成结果三层兜底与服务器保存规则
-
-图片工作台、视频工作台和画布里的图片/视频生成都会按同一套结果访问规则处理：
-
-```text
-用户端展示顺序：浏览器本地缓存 -> API 远程结果地址 -> 服务器副本
-后台日志展示顺序：API 远程结果地址 -> 服务器副本
-```
-
-用户端优先使用浏览器本地缓存，因为它打开最快，也不占用服务器带宽。若用户清理浏览器缓存、换设备或本地缓存丢失，会回退到上游 API 返回的远程结果地址；如果远程地址失效，并且管理员开启了对应类型的“服务器兜底”，才会继续使用 VOZEB 服务器保存的副本。即使远程地址先经过系统渠道媒体代理转发，生成日志也会尽量还原并显示原始 API 远程地址。
-
-管理员后台 `系统设置` 里图片和视频分别有两个开关：
-
-- 服务器兜底：控制普通用户是否可以把 `.data/generation-assets` 中的服务器副本作为最后兜底访问。关闭后不会立刻删除已有副本，但用户端不再暴露该副本地址。
-- 下载保存到服务器：控制新生成结果是否尝试保存服务器副本。关闭后优先只保留本地缓存和远程结果地址，能明显减少服务器磁盘占用。
-
-服务器副本只保存在数据目录 `.data/generation-assets`，不会写入 `.next` 构建产物；Docker 部署时会跟随 `vozeb-data` 数据卷保留。普通用户只能访问自己生成日志引用的服务器副本，管理员可以在后台生成日志和资源统计中查看、删除日志或清理未引用文件。为保护 0.5G 低配服务器，远程结果保存副本时带有大小和超时限制：图片最大 20MB、视频最大 300MB，下载超过 15 秒或文件过大都会自动跳过，不影响本地缓存和远程地址继续展示。
-
-WebDAV 同步与服务器兜底不会互相覆盖。WebDAV 连接信息由管理员后台统一保存和测试，用户端不展示真实 WebDAV 地址、账号或密码；同步对象仍以画布、我的素材、生成记录和本地媒体文件为主，不包含 AI API Key，也不直接同步 `.data/generation-assets` 服务器副本。如果同时开启 WebDAV 和“下载保存到服务器”，同一结果可能在 WebDAV 与服务器数据卷各保留一份，换来跨设备恢复和服务器兜底两层保障。
-
-## 详细功能
-
-### 画布创作
-
-VOZEB 的核心工作流围绕无限画布展开。你可以在画布里放置图片、文本、音频、视频和配置节点，通过连线组织上下游关系，用节点工具条进行复制、下载、保存素材、编辑、切图、放大、蒙版局部修改等操作。画布支持多项目管理、导入导出、撤销重做、小地图和快捷键。
-
-### AI 生成
-
-项目支持 OpenAI 兼容接口，所有 AI 请求统一经过服务端系统代理，前端只拿到 `/api/ai/system/{channelId}` 形式的站内地址，不会展示或持久化真实上游 `Base URL` 与 `API Key`。支持文本问答、文生图、图生图、参考图编辑、音频生成和视频生成。生图/视频工作台的手机端记录面板会使用底部抽屉滚动展示，生成中的状态不会挤乱记录统计。
-
-### 提示词与素材
-
-公共提示词由管理员后台维护，会出现在用户端提示词库。后台公共提示词管理支持新增、远程封面 URL、分页搜索、多选和批量删除，切换到提示词库时只加载当前页，适合维护大型提示词库。用户也可以维护自己的提示词，把稳定的提示词、参考风格和生成结果沉淀为素材。WebDAV 由管理员后台统一接入，用户端不显示真实连接信息，适合长期积累和同步创作资产。
-
-### 用户与管理员
-
-VOZEB 增加了账号系统和后台管理能力。站点首次注册的账号会自动成为管理员，用于完成初始化配置。管理员可以控制注册是否开放、是否要求邮箱注册，调整用户角色、账号状态、积分余额、签到奖励、系统接口渠道和默认模型。后台采用侧边栏切换布局，概览、系统设置、用户管理、生成日志和公共提示词库分区更清楚，并继续适配手机端管理场景。
-
-管理员还可以在后台“网站设置”中维护前台网站标题、Logo URL、SEO 标题、SEO 描述和关键词，并配置首页“沉淀每一次好结果”展示区。展示区可以随机读取公共提示词库，也可以由后台自定义标题、分类、封面、标签和提示词；随机模式会在首页接近该区域时再加载，避免拖慢首屏。保存后首页、顶部导航、浏览器标题、Open Graph、favicon 和首页展示区会同步读取新的站点信息。
-
-### 邮箱注册与 SMTP
-
-进入 `管理员后台 -> 系统设置 -> 账号策略`，打开“邮箱注册”后，普通注册页会要求填写邮箱并获取 6 位验证码；验证码通过后才允许创建账号并登录，邮箱也会校验不能重复。
-
-进入 `管理员后台 -> 系统设置 -> 邮箱服务` 可以配置发信服务。QQ 邮箱默认配置为：
+鍥剧墖宸ヤ綔鍙般€佽棰戝伐浣滃彴鍜岀敾甯冮噷鐨勫浘鐗?瑙嗛鐢熸垚閮戒細鎸夊悓涓€濂楃粨鏋滆闂鍒欏鐞嗭細
 
 ```text
-邮箱类型：QQ 邮箱
-SMTP 服务器：smtp.qq.com
-端口：465
-SSL：开启
-邮箱账号：你的 QQ 邮箱
-授权码 / 密码：QQ 邮箱 SMTP 授权码
-发件邮箱：可留空，默认使用邮箱账号
-发件名称：VOZEB
+鐢ㄦ埛绔睍绀洪『搴忥細娴忚鍣ㄦ湰鍦扮紦瀛?-> API 杩滅▼缁撴灉鍦板潃 -> 鏈嶅姟鍣ㄥ壇鏈?鍚庡彴鏃ュ織灞曠ず椤哄簭锛欰PI 杩滅▼缁撴灉鍦板潃 -> 鏈嶅姟鍣ㄥ壇鏈?```
+
+鐢ㄦ埛绔紭鍏堜娇鐢ㄦ祻瑙堝櫒鏈湴缂撳瓨锛屽洜涓哄畠鎵撳紑鏈€蹇紝涔熶笉鍗犵敤鏈嶅姟鍣ㄥ甫瀹姐€傝嫢鐢ㄦ埛娓呯悊娴忚鍣ㄧ紦瀛樸€佹崲璁惧鎴栨湰鍦扮紦瀛樹涪澶憋紝浼氬洖閫€鍒颁笂娓?API 杩斿洖鐨勮繙绋嬬粨鏋滃湴鍧€锛涘鏋滆繙绋嬪湴鍧€澶辨晥锛屽苟涓旂鐞嗗憳寮€鍚簡瀵瑰簲绫诲瀷鐨勨€滄湇鍔″櫒鍏滃簳鈥濓紝鎵嶄細缁х画浣跨敤 VOZEB 鏈嶅姟鍣ㄤ繚瀛樼殑鍓湰銆傚嵆浣胯繙绋嬪湴鍧€鍏堢粡杩囩郴缁熸笭閬撳獟浣撲唬鐞嗚浆鍙戯紝鐢熸垚鏃ュ織涔熶細灏介噺杩樺師骞舵樉绀哄師濮?API 杩滅▼鍦板潃銆?
+绠＄悊鍛樺悗鍙?`绯荤粺璁剧疆` 閲屽浘鐗囧拰瑙嗛鍒嗗埆鏈変袱涓紑鍏筹細
+
+- 鏈嶅姟鍣ㄥ厹搴曪細鎺у埗鏅€氱敤鎴锋槸鍚﹀彲浠ユ妸 `.data/generation-assets` 涓殑鏈嶅姟鍣ㄥ壇鏈綔涓烘渶鍚庡厹搴曡闂€傚叧闂悗涓嶄細绔嬪埢鍒犻櫎宸叉湁鍓湰锛屼絾鐢ㄦ埛绔笉鍐嶆毚闇茶鍓湰鍦板潃銆?- 涓嬭浇淇濆瓨鍒版湇鍔″櫒锛氭帶鍒舵柊鐢熸垚缁撴灉鏄惁灏濊瘯淇濆瓨鏈嶅姟鍣ㄥ壇鏈€傚叧闂悗浼樺厛鍙繚鐣欐湰鍦扮紦瀛樺拰杩滅▼缁撴灉鍦板潃锛岃兘鏄庢樉鍑忓皯鏈嶅姟鍣ㄧ鐩樺崰鐢ㄣ€?
+鏈嶅姟鍣ㄥ壇鏈彧淇濆瓨鍦ㄦ暟鎹洰褰?`.data/generation-assets`锛屼笉浼氬啓鍏?`.next` 鏋勫缓浜х墿锛汥ocker 閮ㄧ讲鏃朵細璺熼殢 `vozeb-data` 鏁版嵁鍗蜂繚鐣欍€傛櫘閫氱敤鎴峰彧鑳借闂嚜宸辩敓鎴愭棩蹇楀紩鐢ㄧ殑鏈嶅姟鍣ㄥ壇鏈紝绠＄悊鍛樺彲浠ュ湪鍚庡彴鐢熸垚鏃ュ織鍜岃祫婧愮粺璁′腑鏌ョ湅銆佸垹闄ゆ棩蹇楁垨娓呯悊鏈紩鐢ㄦ枃浠躲€備负淇濇姢 0.5G 浣庨厤鏈嶅姟鍣紝杩滅▼缁撴灉淇濆瓨鍓湰鏃跺甫鏈夊ぇ灏忓拰瓒呮椂闄愬埗锛氬浘鐗囨渶澶?20MB銆佽棰戞渶澶?300MB锛屼笅杞借秴杩?15 绉掓垨鏂囦欢杩囧ぇ閮戒細鑷姩璺宠繃锛屼笉褰卞搷鏈湴缂撳瓨鍜岃繙绋嬪湴鍧€缁х画灞曠ず銆?
+WebDAV 鍚屾涓庢湇鍔″櫒鍏滃簳涓嶄細浜掔浉瑕嗙洊銆俉ebDAV 杩炴帴淇℃伅鐢辩鐞嗗憳鍚庡彴缁熶竴淇濆瓨鍜屾祴璇曪紝鐢ㄦ埛绔笉灞曠ず鐪熷疄 WebDAV 鍦板潃銆佽处鍙锋垨瀵嗙爜锛涘悓姝ュ璞′粛浠ョ敾甯冦€佹垜鐨勭礌鏉愩€佺敓鎴愯褰曞拰鏈湴濯掍綋鏂囦欢涓轰富锛屼笉鍖呭惈 AI API Key锛屼篃涓嶇洿鎺ュ悓姝?`.data/generation-assets` 鏈嶅姟鍣ㄥ壇鏈€傚鏋滃悓鏃跺紑鍚?WebDAV 鍜屸€滀笅杞戒繚瀛樺埌鏈嶅姟鍣ㄢ€濓紝鍚屼竴缁撴灉鍙兘鍦?WebDAV 涓庢湇鍔″櫒鏁版嵁鍗峰悇淇濈暀涓€浠斤紝鎹㈡潵璺ㄨ澶囨仮澶嶅拰鏈嶅姟鍣ㄥ厹搴曚袱灞備繚闅溿€?
+## 璇︾粏鍔熻兘
+
+### 鐢诲竷鍒涗綔
+
+VOZEB 鐨勬牳蹇冨伐浣滄祦鍥寸粫鏃犻檺鐢诲竷灞曞紑銆備綘鍙互鍦ㄧ敾甯冮噷鏀剧疆鍥剧墖銆佹枃鏈€侀煶棰戙€佽棰戝拰閰嶇疆鑺傜偣锛岄€氳繃杩炵嚎缁勭粐涓婁笅娓稿叧绯伙紝鐢ㄨ妭鐐瑰伐鍏锋潯杩涜澶嶅埗銆佷笅杞姐€佷繚瀛樼礌鏉愩€佺紪杈戙€佸垏鍥俱€佹斁澶с€佽挋鐗堝眬閮ㄤ慨鏀圭瓑鎿嶄綔銆傜敾甯冩敮鎸佸椤圭洰绠＄悊銆佸鍏ュ鍑恒€佹挙閿€閲嶅仛銆佸皬鍦板浘鍜屽揩鎹烽敭銆?
+### AI 鐢熸垚
+
+椤圭洰鏀寔 OpenAI 鍏煎鎺ュ彛锛屾墍鏈?AI 璇锋眰缁熶竴缁忚繃鏈嶅姟绔郴缁熶唬鐞嗭紝鍓嶇鍙嬁鍒?`/api/ai/system/{channelId}` 褰㈠紡鐨勭珯鍐呭湴鍧€锛屼笉浼氬睍绀烘垨鎸佷箙鍖栫湡瀹炰笂娓?`Base URL` 涓?`API Key`銆傛敮鎸佹枃鏈棶绛斻€佹枃鐢熷浘銆佸浘鐢熷浘銆佸弬鑰冨浘缂栬緫銆侀煶棰戠敓鎴愬拰瑙嗛鐢熸垚銆傜敓鍥?瑙嗛宸ヤ綔鍙扮殑鎵嬫満绔褰曢潰鏉夸細浣跨敤搴曢儴鎶藉眽婊氬姩灞曠ず锛岀敓鎴愪腑鐨勭姸鎬佷笉浼氭尋涔辫褰曠粺璁°€?
+### 鎻愮ず璇嶄笌绱犳潗
+
+鍏叡鎻愮ず璇嶇敱绠＄悊鍛樺悗鍙扮淮鎶わ紝浼氬嚭鐜板湪鐢ㄦ埛绔彁绀鸿瘝搴撱€傚悗鍙板叕鍏辨彁绀鸿瘝绠＄悊鏀寔鏂板銆佽繙绋嬪皝闈?URL銆佸垎椤垫悳绱€佸閫夊拰鎵归噺鍒犻櫎锛屽垏鎹㈠埌鎻愮ず璇嶅簱鏃跺彧鍔犺浇褰撳墠椤碉紝閫傚悎缁存姢澶у瀷鎻愮ず璇嶅簱銆傜敤鎴蜂篃鍙互缁存姢鑷繁鐨勬彁绀鸿瘝锛屾妸绋冲畾鐨勬彁绀鸿瘝銆佸弬鑰冮鏍煎拰鐢熸垚缁撴灉娌夋穩涓虹礌鏉愩€俉ebDAV 鐢辩鐞嗗憳鍚庡彴缁熶竴鎺ュ叆锛岀敤鎴风涓嶆樉绀虹湡瀹炶繛鎺ヤ俊鎭紝閫傚悎闀挎湡绉疮鍜屽悓姝ュ垱浣滆祫浜с€?
+### 鐢ㄦ埛涓庣鐞嗗憳
+
+VOZEB 澧炲姞浜嗚处鍙风郴缁熷拰鍚庡彴绠＄悊鑳藉姏銆傜珯鐐归娆℃敞鍐岀殑璐﹀彿浼氳嚜鍔ㄦ垚涓虹鐞嗗憳锛岀敤浜庡畬鎴愬垵濮嬪寲閰嶇疆銆傜鐞嗗憳鍙互鎺у埗娉ㄥ唽鏄惁寮€鏀俱€佹槸鍚﹁姹傞偖绠辨敞鍐岋紝璋冩暣鐢ㄦ埛瑙掕壊銆佽处鍙风姸鎬併€佺Н鍒嗕綑棰濄€佺鍒板鍔便€佺郴缁熸帴鍙ｆ笭閬撳拰榛樿妯″瀷銆傚悗鍙伴噰鐢ㄤ晶杈规爮鍒囨崲甯冨眬锛屾瑙堛€佺郴缁熻缃€佺敤鎴风鐞嗐€佺敓鎴愭棩蹇楀拰鍏叡鎻愮ず璇嶅簱鍒嗗尯鏇存竻妤氾紝骞剁户缁€傞厤鎵嬫満绔鐞嗗満鏅€?
+绠＄悊鍛樿繕鍙互鍦ㄥ悗鍙扳€滅綉绔欒缃€濅腑缁存姢鍓嶅彴缃戠珯鏍囬銆丩ogo URL銆丼EO 鏍囬銆丼EO 鎻忚堪鍜屽叧閿瘝锛屽苟閰嶇疆棣栭〉鈥滄矇娣€姣忎竴娆″ソ缁撴灉鈥濆睍绀哄尯銆傚睍绀哄尯鍙互闅忔満璇诲彇鍏叡鎻愮ず璇嶅簱锛屼篃鍙互鐢卞悗鍙拌嚜瀹氫箟鏍囬銆佸垎绫汇€佸皝闈€佹爣绛惧拰鎻愮ず璇嶏紱闅忔満妯″紡浼氬湪棣栭〉鎺ヨ繎璇ュ尯鍩熸椂鍐嶅姞杞斤紝閬垮厤鎷栨參棣栧睆銆備繚瀛樺悗棣栭〉銆侀《閮ㄥ鑸€佹祻瑙堝櫒鏍囬銆丱pen Graph銆乫avicon 鍜岄椤靛睍绀哄尯浼氬悓姝ヨ鍙栨柊鐨勭珯鐐逛俊鎭€?
+### 閭娉ㄥ唽涓?SMTP
+
+杩涘叆 `绠＄悊鍛樺悗鍙?-> 绯荤粺璁剧疆 -> 璐﹀彿绛栫暐`锛屾墦寮€鈥滈偖绠辨敞鍐屸€濆悗锛屾櫘閫氭敞鍐岄〉浼氳姹傚～鍐欓偖绠卞苟鑾峰彇 6 浣嶉獙璇佺爜锛涢獙璇佺爜閫氳繃鍚庢墠鍏佽鍒涘缓璐﹀彿骞剁櫥褰曪紝閭涔熶細鏍￠獙涓嶈兘閲嶅銆?
+杩涘叆 `绠＄悊鍛樺悗鍙?-> 绯荤粺璁剧疆 -> 閭鏈嶅姟` 鍙互閰嶇疆鍙戜俊鏈嶅姟銆俀Q 閭榛樿閰嶇疆涓猴細
+
+```text
+閭绫诲瀷锛歈Q 閭
+SMTP 鏈嶅姟鍣細smtp.qq.com
+绔彛锛?65
+SSL锛氬紑鍚?閭璐﹀彿锛氫綘鐨?QQ 閭
+鎺堟潈鐮?/ 瀵嗙爜锛歈Q 閭 SMTP 鎺堟潈鐮?鍙戜欢閭锛氬彲鐣欑┖锛岄粯璁や娇鐢ㄩ偖绠辫处鍙?鍙戜欢鍚嶇О锛歏OZEB
 ```
 
-网易邮箱、企业邮箱或其他邮箱服务，把 SMTP 服务器、端口、SSL、邮箱账号和授权码改成服务商提供的参数即可。配置完成后可以点击“测试邮箱”，默认发送到发件邮箱，也可以单独填写测试收件邮箱。忘记密码、注册验证码和修改邮箱验证码都会复用这里的 SMTP 配置。
-
-### Agent 与插件
-
-本地 Canvas Agent 可以连接 Codex / Claude Code，让 Agent 通过 MCP 读取和操作当前画布。仓库同时提供 Codex App 插件，安装后会注册 `vozeb-canvas` MCP，并尝试拉起本地 Agent。部分内部存储 key 仍保留旧名称，以避免破坏已有用户数据和插件兼容性。
-
-## 效果展示
+缃戞槗閭銆佷紒涓氶偖绠辨垨鍏朵粬閭鏈嶅姟锛屾妸 SMTP 鏈嶅姟鍣ㄣ€佺鍙ｃ€丼SL銆侀偖绠辫处鍙峰拰鎺堟潈鐮佹敼鎴愭湇鍔″晢鎻愪緵鐨勫弬鏁板嵆鍙€傞厤缃畬鎴愬悗鍙互鐐瑰嚮鈥滄祴璇曢偖绠扁€濓紝榛樿鍙戦€佸埌鍙戜欢閭锛屼篃鍙互鍗曠嫭濉啓娴嬭瘯鏀朵欢閭銆傚繕璁板瘑鐮併€佹敞鍐岄獙璇佺爜鍜屼慨鏀归偖绠遍獙璇佺爜閮戒細澶嶇敤杩欓噷鐨?SMTP 閰嶇疆銆?
+### Agent 涓庢彃浠?
+鏈湴 Canvas Agent 鍙互杩炴帴 Codex / Claude Code锛岃 Agent 閫氳繃 MCP 璇诲彇鍜屾搷浣滃綋鍓嶇敾甯冦€備粨搴撳悓鏃舵彁渚?Codex App 鎻掍欢锛屽畨瑁呭悗浼氭敞鍐?`vozeb-canvas` MCP锛屽苟灏濊瘯鎷夎捣鏈湴 Agent銆傞儴鍒嗗唴閮ㄥ瓨鍌?key 浠嶄繚鐣欐棫鍚嶇О锛屼互閬垮厤鐮村潖宸叉湁鐢ㄦ埛鏁版嵁鍜屾彃浠跺吋瀹规€с€?
+## 鏁堟灉灞曠ず
 
 <table width="100%">
   <tr>
-    <td width="50%"><img src="docs/assets/readme/01-home.png" alt="VOZEB 官网首页"></td>
-    <td width="50%"><img src="docs/assets/readme/11-login-modal.png" alt="VOZEB 登录弹窗"></td>
+    <td width="50%"><img src="docs/assets/readme/01-home.png" alt="VOZEB 瀹樼綉棣栭〉"></td>
+    <td width="50%"><img src="docs/assets/readme/11-login-modal.png" alt="VOZEB 鐧诲綍寮圭獥"></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/assets/readme/02-canvas.png" alt="VOZEB 无限画布工作流"></td>
-    <td width="50%"><img src="docs/assets/readme/03-canvas-agent.png" alt="VOZEB 画布 Agent 助手"></td>
+    <td width="50%"><img src="docs/assets/readme/02-canvas.png" alt="VOZEB 鏃犻檺鐢诲竷宸ヤ綔娴?></td>
+    <td width="50%"><img src="docs/assets/readme/03-canvas-agent.png" alt="VOZEB 鐢诲竷 Agent 鍔╂墜"></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/assets/readme/04-image-workbench.png" alt="VOZEB 图片创作工作台"></td>
-    <td width="50%"><img src="docs/assets/readme/05-video-workbench.png" alt="VOZEB 视频创作工作台"></td>
+    <td width="50%"><img src="docs/assets/readme/04-image-workbench.png" alt="VOZEB 鍥剧墖鍒涗綔宸ヤ綔鍙?></td>
+    <td width="50%"><img src="docs/assets/readme/05-video-workbench.png" alt="VOZEB 瑙嗛鍒涗綔宸ヤ綔鍙?></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/assets/readme/06-prompt-library.png" alt="VOZEB 公共提示词库"></td>
-    <td width="50%"><img src="docs/assets/readme/07-my-prompts.png" alt="VOZEB 我的提示词"></td>
+    <td width="50%"><img src="docs/assets/readme/06-prompt-library.png" alt="VOZEB 鍏叡鎻愮ず璇嶅簱"></td>
+    <td width="50%"><img src="docs/assets/readme/07-my-prompts.png" alt="VOZEB 鎴戠殑鎻愮ず璇?></td>
   </tr>
   <tr>
-    <td width="50%"><img src="docs/assets/readme/08-assets.png" alt="VOZEB 素材库"></td>
-    <td width="50%"><img src="docs/assets/readme/09-profile-points.png" alt="VOZEB 个人资料与积分"></td>
+    <td width="50%"><img src="docs/assets/readme/08-assets.png" alt="VOZEB 绱犳潗搴?></td>
+    <td width="50%"><img src="docs/assets/readme/09-profile-points.png" alt="VOZEB 涓汉璧勬枡涓庣Н鍒?></td>
   </tr>
   <tr>
-    <td colspan="2"><img src="docs/assets/readme/10-admin-dashboard.png" alt="VOZEB 管理员后台"></td>
+    <td colspan="2"><img src="docs/assets/readme/10-admin-dashboard.png" alt="VOZEB 绠＄悊鍛樺悗鍙?></td>
   </tr>
 </table>
 
-## 技术栈
+## 鎶€鏈爤
 
-- 前端：Next.js、React、TypeScript、Tailwind CSS、Ant Design、Zustand、TanStack Query。
-- 存储：浏览器本地存储为主，支持导入导出；WebDAV 由管理员后台统一接入和代理。
-- Agent：Canvas Agent、MCP、Codex / Claude Code 本地集成。
-- 部署：Vercel 或 Docker。
-
-## 快速开始
-
+- 鍓嶇锛歂ext.js銆丷eact銆乀ypeScript銆乀ailwind CSS銆丄nt Design銆乑ustand銆乀anStack Query銆?- 瀛樺偍锛氭祻瑙堝櫒鏈湴瀛樺偍涓轰富锛屾敮鎸佸鍏ュ鍑猴紱WebDAV 鐢辩鐞嗗憳鍚庡彴缁熶竴鎺ュ叆鍜屼唬鐞嗐€?- Agent锛欳anvas Agent銆丮CP銆丆odex / Claude Code 鏈湴闆嗘垚銆?- 閮ㄧ讲锛歏ercel 鎴?Docker銆?
+## 蹇€熷紑濮?
 ```bash
 git clone git@github.com:csyqlz/vozeb.git
 cd vozeb/web
@@ -272,13 +205,11 @@ pnpm install
 pnpm run dev
 ```
 
-运行后默认端口为 `3000`，可访问 `http://localhost:3000`。
+杩愯鍚庨粯璁ょ鍙ｄ负 `3000`锛屽彲璁块棶 `http://localhost:3000`銆?
+棣栨鎵撳紑鍚庡厛娉ㄥ唽绠＄悊鍛樿处鍙凤紝鍐嶈繘鍏?`绠＄悊鍛樺悗鍙?-> 绯荤粺璁剧疆 -> 妯″瀷娓犻亾` 閰嶇疆 OpenAI 鍏煎鎺ュ彛銆侀粯璁ゆā鍨嬨€佸苟鍙戜笂闄愩€佺Н鍒嗚鍒欏拰 WebDAV銆傜敤鎴风鍙充笂瑙掍笉鍐嶆彁渚涙帴鍙ｉ厤缃寜閽€?
+## Docker 杩愯
 
-首次打开后先注册管理员账号，再进入 `管理员后台 -> 系统设置 -> 模型渠道` 配置 OpenAI 兼容接口、默认模型、并发上限、积分规则和 WebDAV。用户端右上角不再提供接口配置按钮。
-
-## Docker 运行
-
-低配服务器（包括 0.5G 内存的小机器）建议只使用发布镜像，服务器不执行 `next build`，通常只需要拉镜像和启动容器，才能接近 2 分钟内完成部署：
+浣庨厤鏈嶅姟鍣紙鍖呮嫭 0.5G 鍐呭瓨鐨勫皬鏈哄櫒锛夊缓璁彧浣跨敤鍙戝竷闀滃儚锛屾湇鍔″櫒涓嶆墽琛?`next build`锛岄€氬父鍙渶瑕佹媺闀滃儚鍜屽惎鍔ㄥ鍣紝鎵嶈兘鎺ヨ繎 2 鍒嗛挓鍐呭畬鎴愰儴缃诧細
 
 ```yaml
 services:
@@ -298,79 +229,66 @@ volumes:
   vozeb-data:
 ```
 
-账号、后台设置、签到记录和公共提示词会写入容器内 `/app/web/.data`。使用上面的 Compose 配置升级镜像时，`vozeb-data` 卷会继续保留这些数据；只有手动执行 `docker volume rm` 或 `docker compose down -v` 才会删除。若你之前用的是没有 volume 的旧容器，请先进入旧容器备份 `/app/web/.data` 再替换镜像。本地 standalone 预览会使用 `web/.data`，不会把数据库放进会被重建清理的 `.next/standalone`。
-
-更新到最新镜像：
+璐﹀彿銆佸悗鍙拌缃€佺鍒拌褰曞拰鍏叡鎻愮ず璇嶄細鍐欏叆瀹瑰櫒鍐?`/app/web/.data`銆備娇鐢ㄤ笂闈㈢殑 Compose 閰嶇疆鍗囩骇闀滃儚鏃讹紝`vozeb-data` 鍗蜂細缁х画淇濈暀杩欎簺鏁版嵁锛涘彧鏈夋墜鍔ㄦ墽琛?`docker volume rm` 鎴?`docker compose down -v` 鎵嶄細鍒犻櫎銆傝嫢浣犱箣鍓嶇敤鐨勬槸娌℃湁 volume 鐨勬棫瀹瑰櫒锛岃鍏堣繘鍏ユ棫瀹瑰櫒澶囦唤 `/app/web/.data` 鍐嶆浛鎹㈤暅鍍忋€傛湰鍦?standalone 棰勮浼氫娇鐢?`web/.data`锛屼笉浼氭妸鏁版嵁搴撴斁杩涗細琚噸寤烘竻鐞嗙殑 `.next/standalone`銆?
+鏇存柊鍒版渶鏂伴暅鍍忥細
 
 ```bash
 docker compose pull
 docker compose up -d
 ```
 
-0.5G 服务器不要现场构建源码。Next.js 生产构建需要安装依赖、编译页面、收集页面数据并输出 standalone，内存太小时很容易被系统杀掉。当前 `docker-compose.yml` 默认使用发布镜像，不会在服务器执行 `next build`。需要自定义源码时，建议在本机或 GitHub Actions 构建并推送镜像，再让服务器执行 `docker compose pull && docker compose up -d`。
-
-如果服务器内存只有 0.5G，可以使用低内存 Compose 文件。它同样只拉取 `ghcr.io/csyqlz/vozeb:latest` 发布镜像，并给运行中的容器加上 512MB 内存限制、`NODE_OPTIONS=--max-old-space-size=384` 和 `UV_THREADPOOL_SIZE=2`：
-
+0.5G 鏈嶅姟鍣ㄤ笉瑕佺幇鍦烘瀯寤烘簮鐮併€侼ext.js 鐢熶骇鏋勫缓闇€瑕佸畨瑁呬緷璧栥€佺紪璇戦〉闈€佹敹闆嗛〉闈㈡暟鎹苟杈撳嚭 standalone锛屽唴瀛樺お灏忔椂寰堝鏄撹绯荤粺鏉€鎺夈€傚綋鍓?`docker-compose.yml` 榛樿浣跨敤鍙戝竷闀滃儚锛屼笉浼氬湪鏈嶅姟鍣ㄦ墽琛?`next build`銆傞渶瑕佽嚜瀹氫箟婧愮爜鏃讹紝寤鸿鍦ㄦ湰鏈烘垨 GitHub Actions 鏋勫缓骞舵帹閫侀暅鍍忥紝鍐嶈鏈嶅姟鍣ㄦ墽琛?`docker compose pull && docker compose up -d`銆?
+濡傛灉鏈嶅姟鍣ㄥ唴瀛樺彧鏈?0.5G锛屽彲浠ヤ娇鐢ㄤ綆鍐呭瓨 Compose 鏂囦欢銆傚畠鍚屾牱鍙媺鍙?`ghcr.io/csyqlz/vozeb:latest` 鍙戝竷闀滃儚锛屽苟缁欒繍琛屼腑鐨勫鍣ㄥ姞涓?512MB 鍐呭瓨闄愬埗銆乣NODE_OPTIONS=--max-old-space-size=384` 鍜?`UV_THREADPOOL_SIZE=2`锛?
 ```bash
 docker compose -f docker-compose.lowmem.yml pull
 docker compose -f docker-compose.lowmem.yml up -d
 ```
 
-低内存机器如仍然运行不稳，再考虑增加 swap；但不要在 0.5G 服务器上执行 `docker compose up -d --build`。
-
-如果你的机器至少有 2G 内存，并且必须基于当前源码本地构建，再使用下面的命令：
-
+浣庡唴瀛樻満鍣ㄥ浠嶇劧杩愯涓嶇ǔ锛屽啀鑰冭檻澧炲姞 swap锛涗絾涓嶈鍦?0.5G 鏈嶅姟鍣ㄤ笂鎵ц `docker compose up -d --build`銆?
+濡傛灉浣犵殑鏈哄櫒鑷冲皯鏈?2G 鍐呭瓨锛屽苟涓斿繀椤诲熀浜庡綋鍓嶆簮鐮佹湰鍦版瀯寤猴紝鍐嶄娇鐢ㄤ笅闈㈢殑鍛戒护锛?
 ```bash
 docker compose -f docker-compose.local.yml up -d --build
 ```
 
-## New API / 兼容接口接入
+## New API / 鍏煎鎺ュ彛鎺ュ叆
 
-如果使用 New API、One API 或其他 OpenAI 兼容转发服务，请由管理员在后台 `系统设置 -> 模型渠道` 中填写服务商提供的 `Base URL`、`API Key` 和模型名。前端不会通过 URL 参数或右上角弹窗接收用户自定义接口，避免真实上游域名和密钥暴露给普通用户。
-
+濡傛灉浣跨敤 New API銆丱ne API 鎴栧叾浠?OpenAI 鍏煎杞彂鏈嶅姟锛岃鐢辩鐞嗗憳鍦ㄥ悗鍙?`绯荤粺璁剧疆 -> 妯″瀷娓犻亾` 涓～鍐欐湇鍔″晢鎻愪緵鐨?`Base URL`銆乣API Key` 鍜屾ā鍨嬪悕銆傚墠绔笉浼氶€氳繃 URL 鍙傛暟鎴栧彸涓婅寮圭獥鎺ユ敹鐢ㄦ埛鑷畾涔夋帴鍙ｏ紝閬垮厤鐪熷疄涓婃父鍩熷悕鍜屽瘑閽ユ毚闇茬粰鏅€氱敤鎴枫€?
 ```text
 Base URL: https://your-api.example.com/v1
-API Key: 仅保存在服务端后台配置
-模型名: 按上游实际返回或手动填写
+API Key: 浠呬繚瀛樺湪鏈嶅姟绔悗鍙伴厤缃?妯″瀷鍚? 鎸変笂娓稿疄闄呰繑鍥炴垨鎵嬪姩濉啓
 ```
 
-保存后，用户端只会看到系统代理模型，实际调用统一走站内 `/api/ai/system/{channelId}`。
+淇濆瓨鍚庯紝鐢ㄦ埛绔彧浼氱湅鍒扮郴缁熶唬鐞嗘ā鍨嬶紝瀹為檯璋冪敤缁熶竴璧扮珯鍐?`/api/ai/system/{channelId}`銆?
+## 鏂囨。
 
-## 文档
+- [蹇€熷紑濮媇(docs/content/docs/overview/quick-start.mdx)
+- [鍔熻兘浠嬬粛](docs/content/docs/overview/features.mdx)
+- [Render 閮ㄧ讲](docs/content/docs/overview/render.mdx)
+- [Docker 閮ㄧ讲](docs/content/docs/overview/docker.mdx)
+- [绗笁鏂?GitHub 鎻愮ず璇嶄粨搴揮(docs/content/docs/overview/third-party-prompt-repositories.mdx)
+- [鐢诲竷鑺傜偣鎿嶄綔鎵嬪唽](docs/content/docs/canvas/canvas-node-manual.mdx)
+- [鐢诲竷蹇嵎閿甝(docs/content/docs/canvas/canvas-shortcuts.mdx)
+- [鏈湴寮€鍙慮(docs/content/docs/backend/local-development.mdx)
+- [鐢诲竷鏁版嵁缁撴瀯](docs/content/docs/backend/canvas-data-structure.mdx)
+- [鏈湴 Canvas Agent](canvas-agent/README.md)
+- [Codex app 鎻掍欢](plugins/vozeb-canvas)
+- [寮€婧愬崗璁甝(docs/content/docs/business/license.mdx)
+- [璐＄尞鑰呭崗璁甝(docs/content/docs/business/cla.mdx)
+- [婕忔礊鎻愪氦](docs/content/docs/support/security.mdx)
+- [寰呭姙浜嬮」](docs/content/docs/progress/todo.mdx)
+- [寰呮祴璇昡(docs/content/docs/progress/pending-test.mdx)
 
-- [快速开始](docs/content/docs/overview/quick-start.mdx)
-- [功能介绍](docs/content/docs/overview/features.mdx)
-- [Render 部署](docs/content/docs/overview/render.mdx)
-- [Docker 部署](docs/content/docs/overview/docker.mdx)
-- [第三方 GitHub 提示词仓库](docs/content/docs/overview/third-party-prompt-repositories.mdx)
-- [画布节点操作手册](docs/content/docs/canvas/canvas-node-manual.mdx)
-- [画布快捷键](docs/content/docs/canvas/canvas-shortcuts.mdx)
-- [本地开发](docs/content/docs/backend/local-development.mdx)
-- [画布数据结构](docs/content/docs/backend/canvas-data-structure.mdx)
-- [本地 Canvas Agent](canvas-agent/README.md)
-- [Codex app 插件](plugins/vozeb-canvas)
-- [开源协议](docs/content/docs/business/license.mdx)
-- [贡献者协议](docs/content/docs/business/cla.mdx)
-- [漏洞提交](docs/content/docs/support/security.mdx)
-- [待办事项](docs/content/docs/progress/todo.mdx)
-- [待测试](docs/content/docs/progress/pending-test.mdx)
+## 鑷磋阿
 
-## 致谢
-
-VOZEB 基于原创开源画布项目继续开发。感谢原创作者 basketikun 对无限画布、AI 创作工作流、Canvas Agent 和 Codex 插件能力的开源贡献。
-
-感谢 QQ 大佬 Kitty的猫 对 VOZEB 的持续赞助支持，帮助项目继续维护、测试和迭代。
-
-也感谢 LinuxDO 社区、相关提示词开源仓库、Codex / Claude Code 生态和所有工具链项目提供的灵感与基础设施。
-
-### QQ 交流群
-
-群号：`1049777515`
+VOZEB 鍩轰簬鍘熷垱寮€婧愮敾甯冮」鐩户缁紑鍙戙€傛劅璋㈠師鍒涗綔鑰?basketikun 瀵规棤闄愮敾甯冦€丄I 鍒涗綔宸ヤ綔娴併€丆anvas Agent 鍜?Codex 鎻掍欢鑳藉姏鐨勫紑婧愯础鐚€?
+鎰熻阿 QQ 澶т浆 Kitty鐨勭尗 瀵?VOZEB 鐨勬寔缁禐鍔╂敮鎸侊紝甯姪椤圭洰缁х画缁存姢銆佹祴璇曞拰杩唬銆?
+涔熸劅璋?LinuxDO 绀惧尯銆佺浉鍏虫彁绀鸿瘝寮€婧愪粨搴撱€丆odex / Claude Code 鐢熸€佸拰鎵€鏈夊伐鍏烽摼椤圭洰鎻愪緵鐨勭伒鎰熶笌鍩虹璁炬柦銆?
+### QQ 浜ゆ祦缇?
+缇ゅ彿锛歚1049777515`
 
 <p align="center">
-  <img src="docs/assets/readme/12-qq-group.png" width="260" alt="VOZEB QQ 交流群二维码">
+  <img src="docs/assets/readme/12-qq-group.png" width="260" alt="VOZEB QQ 浜ゆ祦缇や簩缁寸爜">
 </p>
 
-## 开源协议
-
-本项目继续遵循 GNU Affero General Public License v3.0，见 [LICENSE](LICENSE)。二次开发、分发或部署时请遵守 AGPL-3.0 协议，并保留原作者与本项目的开源信息。
+## 寮€婧愬崗璁?
+鏈」鐩户缁伒寰?GNU Affero General Public License v3.0锛岃 [LICENSE](LICENSE)銆備簩娆″紑鍙戙€佸垎鍙戞垨閮ㄧ讲鏃惰閬靛畧 AGPL-3.0 鍗忚锛屽苟淇濈暀鍘熶綔鑰呬笌鏈」鐩殑寮€婧愪俊鎭€?

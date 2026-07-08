@@ -15,6 +15,7 @@ import { createVideoGenerationTask, storeGeneratedVideo, waitForVideoGenerationT
 import { DOCS_URL } from "@/constant/env";
 import { defaultConfig, modelMatchesCapability, modelOptionName, type AiConfig, useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { browserReadableMediaUrl } from "@/lib/browser-media-url";
+import { droppedFiles, preventFileDragEvent } from "@/lib/file-drop";
 import { resolveImageUrl, resolveStoredImageDataUrl, uploadImage, type UploadedImage } from "@/services/image-storage";
 import { resolveMediaUrl, uploadMediaFile, type UploadedFile } from "@/services/file-storage";
 import { nanoid } from "nanoid";
@@ -104,6 +105,7 @@ type CanvasGenerationRequest = {
 
 const VIDEO_NODE_MAX_WIDTH = 420;
 const VIDEO_NODE_MAX_HEIGHT = 420;
+const CANVAS_DROP_NODE_OFFSET = 48;
 const CONNECTION_HANDLE_HIT_RADIUS = 40;
 const CONNECTION_NODE_HIT_PADDING = 32;
 const NODE_STATUS_IDLE = "idle" as const;
@@ -441,7 +443,7 @@ function VozebCanvasPage() {
             status: "success",
             title: finalPrompt.slice(0, 36) || "画布视频",
             prompt: finalPrompt,
-            model: generationConfig.model || generationConfig.videoModel,
+            model: modelOptionName(generationConfig.model || generationConfig.videoModel),
             summary: "画布视频生成完成",
             durationMs: video.durationMs,
             count: 1,
@@ -2251,12 +2253,15 @@ function VozebCanvasPage() {
 
     const handleDrop = useCallback(
         (event: ReactDragEvent<HTMLDivElement>) => {
-            event.preventDefault();
-            const file = Array.from(event.dataTransfer.files).find((item) => item.type.startsWith("image/") || item.type.startsWith("video/") || isAudioFile(item));
-            if (!file) return;
+            if (!preventFileDragEvent(event)) return;
+            const files = droppedFiles(event, (item) => item.type.startsWith("image/") || item.type.startsWith("video/") || isAudioFile(item));
+            if (!files.length) return;
 
             const pos = screenToCanvas(event.clientX, event.clientY);
-            void (isAudioFile(file) ? createAudioFileNode(file, pos) : file.type.startsWith("video/") ? createVideoFileNode(file, pos) : createImageFileNode(file, pos));
+            files.forEach((file, index) => {
+                const nextPos = { x: pos.x + index * CANVAS_DROP_NODE_OFFSET, y: pos.y + index * CANVAS_DROP_NODE_OFFSET };
+                void (isAudioFile(file) ? createAudioFileNode(file, nextPos) : file.type.startsWith("video/") ? createVideoFileNode(file, nextPos) : createImageFileNode(file, nextPos));
+            });
         },
         [createAudioFileNode, createImageFileNode, createVideoFileNode, screenToCanvas],
     );
@@ -3436,6 +3441,8 @@ function canvasNodeReferenceImage(node: CanvasNodeData): ReferenceImage {
         dataUrl: content,
         storageKey: node.metadata?.storageKey,
         url: remoteUrl || serverUrl || undefined,
+        remoteUrl: remoteUrl || undefined,
+        serverUrl: serverUrl || undefined,
     };
 }
 

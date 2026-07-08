@@ -2,7 +2,7 @@
 
 import { ArrowLeft, ArrowRight, BookOpen, Check, CheckSquare, ClipboardPaste, Download, FolderPlus, History, LoaderCircle, Music2, PenLine, Plus, SlidersHorizontal, Sparkles, Trash2, Upload, VideoIcon } from "lucide-react";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type DragEvent as ReactDragEvent } from "react";
 import { App, Button, Checkbox, Drawer, Empty, Input, Modal, Tag, Typography } from "antd";
 import localforage from "localforage";
 import { nanoid } from "nanoid";
@@ -15,6 +15,7 @@ import { formatCreditAmount, requestCreditCost } from "@/constant/credits";
 import { VideoSettingsPanel, normalizeVideoResolutionValue, normalizeVideoSizeValue, videoSizeLabel } from "@/components/video-settings-panel";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { browserReadableMediaUrl } from "@/lib/browser-media-url";
+import { droppedFiles, leftDropTarget, preventFileDragEvent } from "@/lib/file-drop";
 import { formatBytes, formatDuration } from "@/lib/image-utils";
 import { APP_STORAGE_NAME, LEGACY_APP_STORAGE_NAME } from "@/lib/storage-keys";
 import { boolConfig, isSeedanceVideoConfig, normalizeSeedanceRatio, seedanceReferenceLabel, seedanceVideoReferenceError, seedanceVideoReferenceHint, SEEDANCE_REFERENCE_LIMITS } from "@/lib/seedance-video";
@@ -26,6 +27,7 @@ import { useAssetStore } from "@/stores/use-asset-store";
 import { modelOptionLabel, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { cn } from "@/lib/utils";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 
@@ -84,6 +86,7 @@ type GenerationLog = {
 type GenerationLogConfig = Pick<AiConfig, "model" | "videoModel" | "size" | "vquality" | "videoSeconds" | "videoGenerateAudio" | "videoWatermark">;
 
 type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
+type ReferenceDropTarget = "image" | "video" | "audio";
 
 const globalLogStore = localforage.createInstance({ name: APP_STORAGE_NAME, storeName: "video_generation_logs" });
 const legacyLogStore = localforage.createInstance({ name: LEGACY_APP_STORAGE_NAME, storeName: "video_generation_logs" });
@@ -121,6 +124,7 @@ export default function VideoPage() {
     const [settingsOpen, setSettingsOpen] = useState(false);
     const [promptDialogOpen, setPromptDialogOpen] = useState(false);
     const [assetPickerOpen, setAssetPickerOpen] = useState(false);
+    const [referenceDragTarget, setReferenceDragTarget] = useState<ReferenceDropTarget | null>(null);
     const [selectedLogIds, setSelectedLogIds] = useState<string[]>([]);
     const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
     const [previewLog, setPreviewLog] = useState<GenerationLog | null>(null);
@@ -172,7 +176,7 @@ export default function VideoPage() {
         startQueuedVideoLogs();
     }, [videoConcurrencyLimit]);
 
-    const addReferences = async (files?: FileList | null) => {
+    const addReferences = async (files?: FileList | File[] | null) => {
         const selectedFiles = Array.from(files || []);
         const unsupported = selectedFiles.filter((file) => !file.type.startsWith("image/") && !file.type.startsWith("video/") && !isSupportedAudioFile(file));
         if (unsupported.length) message.warning("已忽略不支持的参考素材，请使用图片、mp4/mov 视频或 mp3/wav 音频");
@@ -207,6 +211,36 @@ export default function VideoPage() {
         setReferences((value) => [...value, ...nextReferences].slice(0, SEEDANCE_REFERENCE_LIMITS.images));
         setVideoReferences((value) => [...value, ...nextVideoReferences].slice(0, SEEDANCE_REFERENCE_LIMITS.videos));
         setAudioReferences((value) => [...value, ...nextAudioReferences].slice(0, SEEDANCE_REFERENCE_LIMITS.audios));
+    };
+
+    const referenceDropZoneClass = (target: ReferenceDropTarget) =>
+        cn(
+            "hover-scrollbar hover-scrollbar-hint flex min-h-24 w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 pb-3 overscroll-x-contain transition dark:border-stone-700",
+            referenceDragTarget === target && "border-cyan-400 bg-cyan-50/60 ring-1 ring-cyan-200 dark:border-cyan-400 dark:bg-cyan-500/10 dark:ring-cyan-400/25",
+        );
+
+    const referenceFileAccepted = (target: ReferenceDropTarget, file: File) => {
+        if (target === "image") return file.type.startsWith("image/");
+        if (target === "video") return file.type.startsWith("video/");
+        return isSupportedAudioFile(file);
+    };
+
+    const handleReferenceDragOver = (target: ReferenceDropTarget) => (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event)) return;
+        setReferenceDragTarget(target);
+    };
+
+    const handleReferenceDragLeave = (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event) || !leftDropTarget(event)) return;
+        setReferenceDragTarget(null);
+    };
+
+    const handleReferenceDrop = (target: ReferenceDropTarget) => (event: ReactDragEvent<HTMLDivElement>) => {
+        if (!preventFileDragEvent(event)) return;
+        setReferenceDragTarget(null);
+        const files = droppedFiles(event, (file) => referenceFileAccepted(target, file));
+        if (!files.length) return;
+        void addReferences(files);
     };
 
     const addReferencesFromClipboard = async () => {
@@ -701,7 +735,7 @@ export default function VideoPage() {
                                         </Button>
                                     </div>
                                 </div>
-                                <div className="hover-scrollbar hover-scrollbar-hint flex min-h-24 w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 pb-3 overscroll-x-contain dark:border-stone-700">
+                                <div className={referenceDropZoneClass("image")} onDragEnter={handleReferenceDragOver("image")} onDragOver={handleReferenceDragOver("image")} onDragLeave={handleReferenceDragLeave} onDrop={handleReferenceDrop("image")}>
                                     {references.map((item, index) => (
                                         <div key={item.id} className="group relative size-20 shrink-0 overflow-hidden rounded-md border border-stone-200 dark:border-stone-800">
                                             <img src={item.dataUrl} alt={item.name} className="size-full object-cover" />
@@ -728,7 +762,7 @@ export default function VideoPage() {
                                         上传
                                     </Button>
                                 </div>
-                                <div className="hover-scrollbar hover-scrollbar-hint flex min-h-24 w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 pb-3 overscroll-x-contain dark:border-stone-700">
+                                <div className={referenceDropZoneClass("video")} onDragEnter={handleReferenceDragOver("video")} onDragOver={handleReferenceDragOver("video")} onDragLeave={handleReferenceDragLeave} onDrop={handleReferenceDrop("video")}>
                                     {videoReferences.map((item, index) => (
                                         <div key={item.id} className="group relative h-20 w-32 shrink-0 overflow-hidden rounded-md border border-stone-200 bg-black dark:border-stone-800">
                                             <video src={item.url} className="size-full object-cover" muted preload="metadata" />
@@ -755,7 +789,7 @@ export default function VideoPage() {
                                         上传
                                     </Button>
                                 </div>
-                                <div className="hover-scrollbar hover-scrollbar-hint flex min-h-24 w-full min-w-0 max-w-full gap-2 overflow-x-scroll overflow-y-hidden rounded-lg border border-dashed border-stone-300 p-2 pb-3 overscroll-x-contain dark:border-stone-700">
+                                <div className={referenceDropZoneClass("audio")} onDragEnter={handleReferenceDragOver("audio")} onDragOver={handleReferenceDragOver("audio")} onDragLeave={handleReferenceDragLeave} onDrop={handleReferenceDrop("audio")}>
                                     {audioReferences.map((item, index) => (
                                         <div key={item.id} className="group relative flex h-20 w-48 shrink-0 flex-col justify-center gap-2 rounded-md border border-stone-200 bg-stone-50 px-2 dark:border-stone-800 dark:bg-stone-900">
                                             <div className="flex min-w-0 items-center gap-2 text-xs text-stone-500 dark:text-stone-400">
