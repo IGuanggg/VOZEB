@@ -55,14 +55,14 @@ curl -I http://127.0.0.1:3000
 
 如果 IP 可以访问但域名打不开，请先把域名 A/AAAA 记录解析到服务器，再用 Nginx、Caddy 或宝塔把域名反向代理到 `http://127.0.0.1:3000`。反代需要保留 `Host`、`X-Forwarded-Host`、`X-Forwarded-Proto`，否则 HTTPS 登录 Cookie 和参考图公网临时地址可能判断错误。域名部署建议复制 `.env.example` 为 `.env` 并填写：
 
-```env
+```bash
 NEXT_PUBLIC_SITE_URL=https://你的域名
 VOZEB_COOKIE_SECURE=true
 ```
 
 如果你只想允许域名反代访问，不想暴露 `服务器IP:3000`，在 `.env` 里追加：
 
-```env
+```bash
 VOZEB_BIND_HOST=127.0.0.1
 ```
 

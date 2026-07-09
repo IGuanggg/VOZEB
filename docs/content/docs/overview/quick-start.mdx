@@ -26,7 +26,7 @@ https://你的域名
 
 默认 Compose 使用 `VOZEB_BIND_HOST=0.0.0.0`，`http://服务器IP:3000` 直连和域名反向代理都可用。域名部署时，请把域名解析到服务器，并通过 Nginx、Caddy 或宝塔反向代理到 `http://127.0.0.1:3000`。建议在 `.env` 中填写：
 
-```env
+```bash
 NEXT_PUBLIC_SITE_URL=https://你的域名
 VOZEB_COOKIE_SECURE=true
 ```
@@ -42,7 +42,7 @@ ports:
 
 上面是 `VOZEB_BIND_HOST=0.0.0.0` 展开后的等效写法，会让 IP 直连和域名反代都可用。如果只想允许域名反代访问，不想暴露 `服务器IP:3000`，在 `.env` 中设置：
 
-```env
+```bash
 VOZEB_BIND_HOST=127.0.0.1
 ```
 
