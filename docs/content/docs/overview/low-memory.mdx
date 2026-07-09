@@ -29,7 +29,7 @@ https://你的域名
 `docker-compose.lowmem.yml` 默认使用：
 
 - `ghcr.io/csyqlz/vozeb:latest` 预构建镜像。
-- `${VOZEB_BIND_HOST:-0.0.0.0}:3000:3000` 端口绑定，默认兼容 IP 直连和域名反代。
+- `0.0.0.0:3000:3000` 端口绑定，默认兼容 IP 直连和域名反代；设置 `VOZEB_BIND_HOST=127.0.0.1` 后只允许本机反代访问。
 - `mem_limit: 512m` 和 `memswap_limit: 768m`。
 - `NODE_OPTIONS=--max-old-space-size=384` 限制 Node.js 堆内存。
 - `UV_THREADPOOL_SIZE=2` 减少低配机器上的线程开销。

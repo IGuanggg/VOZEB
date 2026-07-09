@@ -17,13 +17,13 @@ services:
     image: ghcr.io/csyqlz/vozeb:latest
     container_name: vozeb
     ports:
-      - "${VOZEB_BIND_HOST:-0.0.0.0}:3000:3000"
+      - "0.0.0.0:3000:3000"
     volumes:
       - vozeb-data:/app/web/.data
     environment:
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
-      NEXT_PUBLIC_DOC_URL: ${NEXT_PUBLIC_DOC_URL:-}
-      VOZEB_COOKIE_SECURE: ${VOZEB_COOKIE_SECURE:-}
+      NEXT_PUBLIC_SITE_URL: https://你的域名
+      NEXT_PUBLIC_DOC_URL: https://github.com/csyqlz/vozeb/tree/main/docs
+      VOZEB_COOKIE_SECURE: "true"
       VOZEB_DATA_DIR: /app/web/.data
       VOZEB_INTERNAL_ORIGIN: http://127.0.0.1:3000
     restart: unless-stopped
@@ -86,7 +86,7 @@ services:
     image: ghcr.io/csyqlz/vozeb:latest
     container_name: vozeb
     ports:
-      - "${VOZEB_BIND_HOST:-0.0.0.0}:3000:3000"
+      - "0.0.0.0:3000:3000"
 ```
 
 本地构建版端口配置：
@@ -101,10 +101,10 @@ services:
       dockerfile: Dockerfile
     container_name: vozeb
     ports:
-      - "${VOZEB_BIND_HOST:-0.0.0.0}:3000:3000"
+      - "0.0.0.0:3000:3000"
 ```
 
-默认 `VOZEB_BIND_HOST=0.0.0.0`，IP 直连和域名反代都可用。如果只想允许域名反代访问，在 `.env` 设置 `VOZEB_BIND_HOST=127.0.0.1`。
+上面的端口是默认 `VOZEB_BIND_HOST=0.0.0.0` 展开后的等效写法，IP 直连和域名反代都可用。如果只想允许域名反代访问，在 `.env` 设置 `VOZEB_BIND_HOST=127.0.0.1`。
 
 第一次注册的账号会自动成为管理员。请用这个首个管理员账号进入后台，完成网站标题、Logo、SEO、邮箱注册、SMTP、模型渠道、默认模型、用户积分和公共提示词库配置。
 
