@@ -3040,6 +3040,13 @@ function VozebCanvasPage() {
     const removeDirectorPanorama = useCallback((connectionId: string) => {
         setConnections((current) => current.filter((connection) => connection.id !== connectionId));
     }, []);
+    const disconnectPromptReference = useCallback((nodeId: string, referenceNodeId: string) => {
+        const targetNodeIds = new Set([nodeId]);
+        connectionsRef.current.forEach((connection) => {
+            if (connection.fromNodeId === nodeId && nodesRef.current.find((node) => node.id === connection.toNodeId)?.type === CanvasNodeType.Config) targetNodeIds.add(connection.toNodeId);
+        });
+        setConnections((current) => current.filter((connection) => !(connection.fromNodeId === referenceNodeId && targetNodeIds.has(connection.toNodeId))));
+    }, []);
     const updateDirectorProject = useCallback((nodeId: string, project: unknown) => {
         setNodes((current) => current.map((node) => (node.id === nodeId && node.type === CanvasNodeType.Director ? { ...node, metadata: { ...node.metadata, directorProject: project } } : node)));
     }, []);
@@ -3107,13 +3114,14 @@ function VozebCanvasPage() {
                     onConfigChange={handleConfigNodeChange}
                     onGenerate={handleGenerateNode}
                     onStop={confirmStopGeneration}
+                    onDisconnectReference={disconnectPromptReference}
                     onImageSettingsOpenChange={(open) => {
                         setNodeImageSettingsOpen(open);
                         if (open) setToolbarNodeId(null);
                     }}
                 />
             ),
-        [configInputsById, confirmStopGeneration, emptyMentionReferences, handleConfigNodeChange, handleGenerateNode, handleNodePromptChange, mentionReferencesByNodeId, runningNodeId],
+        [configInputsById, confirmStopGeneration, disconnectPromptReference, emptyMentionReferences, handleConfigNodeChange, handleGenerateNode, handleNodePromptChange, mentionReferencesByNodeId, runningNodeId],
     );
     const renderCanvasNodeContent = useCallback(
         (contentNode: CanvasNodeData) => {

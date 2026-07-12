@@ -3,18 +3,11 @@
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, KeyboardEvent, MouseEvent, PointerEvent } from "react";
-import { Check, FileText, Image as ImageIcon, Music2, Video, X } from "lucide-react";
+import { FileText, Image as ImageIcon, Music2, Video, X } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
-import {
-    canvasReferenceRoleLabel,
-    canvasReferenceToken,
-    excludedCanvasReferenceToken,
-    parseCanvasReferenceTokens,
-    parseExcludedCanvasReferenceNodeIds,
-    type CanvasReferenceRole,
-} from "../utils/canvas-resource-mention-tokens";
+import { canvasReferenceToken } from "../utils/canvas-resource-mention-tokens";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 
 type Props = {
@@ -27,13 +20,12 @@ type Props = {
     style?: CSSProperties;
     placeholder?: string;
     targetNodeId?: string;
+    onDisconnectReference?: (nodeId: string) => void;
 };
 
 type MentionState = { query: string };
 
-const referenceRoles: CanvasReferenceRole[] = ["target", "reference", "subject", "style", "composition"];
-
-export function CanvasInlineReferenceComposer({ value, references, onChange, onSubmit, className, containerClassName, style, placeholder, targetNodeId }: Props) {
+export function CanvasInlineReferenceComposer({ value, references, onChange, onSubmit, className, containerClassName, style, placeholder, targetNodeId, onDisconnectReference }: Props) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const editorRef = useRef<HTMLDivElement>(null);
     const composingRef = useRef(false);
@@ -42,23 +34,12 @@ export function CanvasInlineReferenceComposer({ value, references, onChange, onS
     const [activeIndex, setActiveIndex] = useState(0);
     const activeReferences = useMemo(() => references.filter((reference) => reference.active), [references]);
     const referenceById = useMemo(() => new Map(activeReferences.map((reference) => [reference.nodeId, reference])), [activeReferences]);
-    const excludedNodeIds = useMemo(() => new Set(parseExcludedCanvasReferenceNodeIds(value)), [value]);
-    const includedReferences = useMemo(() => activeReferences.filter((reference) => !excludedNodeIds.has(reference.nodeId)), [activeReferences, excludedNodeIds]);
-    const firstRoleByNodeId = useMemo(() => {
-        const roles = new Map<string, CanvasReferenceRole>();
-        parseCanvasReferenceTokens(value).forEach((token) => {
-            if (!roles.has(token.nodeId)) roles.set(token.nodeId, token.role);
-        });
-        return roles;
-    }, [value]);
     const candidates = useMemo(() => {
         if (!mention) return [];
         const query = mention.query.trim().toLowerCase();
         if (!query) return activeReferences;
         return activeReferences.filter((reference) => `${reference.label} ${reference.title} ${reference.kind} ${reference.text || ""}`.toLowerCase().includes(query));
     }, [activeReferences, mention]);
-
-    const defaultRole = (nodeId: string): CanvasReferenceRole => (nodeId === targetNodeId ? "target" : "reference");
 
     const syncFromEditor = () => {
         const editor = editorRef.current;
@@ -80,11 +61,10 @@ export function CanvasInlineReferenceComposer({ value, references, onChange, onS
                 return;
             }
             if (token.type === "exclude") {
-                editor.append(createExcludedReference(token.nodeId));
                 return;
             }
             const reference = referenceById.get(token.nodeId);
-            if (reference) editor.append(createInlineReference(reference, token.role, theme, syncFromEditor));
+            if (reference) editor.append(createInlineReference(reference, theme));
         });
         lastSerializedRef.current = value;
     }, [referenceById, theme, value]);
@@ -97,37 +77,33 @@ export function CanvasInlineReferenceComposer({ value, references, onChange, onS
     const insertReference = (reference: CanvasResourceReference) => {
         const editor = editorRef.current;
         if (!editor) return;
-        editor.querySelectorAll<HTMLElement>(`[data-excluded-reference-node-id="${CSS.escape(reference.nodeId)}"]`).forEach((node) => node.remove());
         removeActiveMention(editor);
-        const chip = createInlineReference(reference, firstRoleByNodeId.get(reference.nodeId) || defaultRole(reference.nodeId), theme, syncFromEditor);
+        const chip = createInlineReference(reference, theme);
         insertAtCaret(editor, chip);
         closeMention();
         syncFromEditor();
     };
 
-    const excludeReference = (nodeId: string) => {
+    const disconnectReference = (nodeId: string) => {
         const editor = editorRef.current;
         if (!editor) return;
         editor.querySelectorAll<HTMLElement>(`[data-reference-node-id="${CSS.escape(nodeId)}"]`).forEach((node) => node.remove());
-        if (!editor.querySelector(`[data-excluded-reference-node-id="${CSS.escape(nodeId)}"]`)) editor.append(createExcludedReference(nodeId));
         syncFromEditor();
+        onDisconnectReference?.(nodeId);
     };
 
     const stopCanvasInteraction = (event: PointerEvent | MouseEvent) => event.stopPropagation();
 
     return (
         <div className={`flex min-h-0 w-full flex-col ${containerClassName || ""}`}>
-            {includedReferences.length ? (
-                <div className="thin-scrollbar mb-2 flex max-w-full shrink-0 gap-2 overflow-x-auto pb-0.5" aria-label="本次发送的参考素材">
-                    {includedReferences.map((reference) => (
-                        <div
-                            key={reference.nodeId}
-                            className="flex h-14 max-w-52 shrink-0 items-center gap-2 rounded-md border p-1.5 pl-2 text-xs"
-                            style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text }}
-                        >
+            {activeReferences.length ? (
+                <div className="thin-scrollbar mb-2 flex max-w-full shrink-0 gap-2 overflow-x-auto pb-0.5" aria-label="已连接的参考素材">
+                    {activeReferences.map((reference, index) => (
+                        <div key={reference.nodeId} className="group relative size-12 shrink-0">
                             <button
                                 type="button"
-                                className="flex min-h-11 min-w-0 flex-1 items-center gap-2 text-left"
+                                className="size-12 overflow-hidden rounded-md border"
+                                style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text }}
                                 title={`在提示词中插入${reference.label}`}
                                 onPointerDown={(event) => event.stopPropagation()}
                                 onClick={(event) => {
@@ -135,29 +111,30 @@ export function CanvasInlineReferenceComposer({ value, references, onChange, onS
                                     insertReference(reference);
                                 }}
                             >
-                                <ReferencePreview reference={reference} compact />
-                                <span className="min-w-0">
-                                    <span className="block truncate font-semibold">{reference.label}</span>
-                                    <span className="block truncate text-[10px] opacity-55">{canvasReferenceRoleLabel(firstRoleByNodeId.get(reference.nodeId) || defaultRole(reference.nodeId))}</span>
-                                </span>
+                                <ReferencePreview reference={reference} tile />
                             </button>
-                            <button
-                                type="button"
-                                className="grid size-11 shrink-0 place-items-center rounded-md opacity-55 transition hover:bg-black/10 hover:opacity-100"
-                                aria-label={`不发送${reference.label}`}
-                                title={`不发送${reference.label}`}
-                                onPointerDown={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                }}
-                                onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    excludeReference(reference.nodeId);
-                                }}
-                            >
-                                <X className="size-4" />
-                            </button>
+                            <span className="pointer-events-none absolute left-1 top-1 grid min-w-4 place-items-center rounded bg-black/65 px-1 text-[10px] font-semibold leading-4 text-white">{index + 1}</span>
+                            {onDisconnectReference && reference.nodeId !== targetNodeId ? (
+                                <button
+                                    type="button"
+                                    className="absolute -right-2 -top-2 grid size-11 place-items-center text-white opacity-100 transition sm:opacity-0 sm:group-hover:opacity-100"
+                                    aria-label={`断开${reference.label}`}
+                                    title={`断开${reference.label}`}
+                                    onPointerDown={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                    }}
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        disconnectReference(reference.nodeId);
+                                    }}
+                                >
+                                    <span className="grid size-6 place-items-center rounded-full border border-white/70 bg-[#333] shadow-sm">
+                                        <X className="size-3" />
+                                    </span>
+                                </button>
+                            ) : null}
                         </div>
                     ))}
                 </div>
@@ -228,7 +205,7 @@ export function CanvasInlineReferenceComposer({ value, references, onChange, onS
                     onWheel={(event) => event.stopPropagation()}
                 />
                 {mention && candidates.length && editorRef.current ? (
-                    <MentionMenu editor={editorRef.current} references={candidates} excludedNodeIds={excludedNodeIds} activeIndex={Math.min(activeIndex, candidates.length - 1)} theme={theme} onSelect={insertReference} />
+                    <MentionMenu editor={editorRef.current} references={candidates} allReferences={activeReferences} activeIndex={Math.min(activeIndex, candidates.length - 1)} theme={theme} onSelect={insertReference} />
                 ) : null}
             </div>
         </div>
@@ -247,7 +224,7 @@ export function CanvasInlineReferenceComposer({ value, references, onChange, onS
     }
 }
 
-function MentionMenu({ editor, references, excludedNodeIds, activeIndex, theme, onSelect }: { editor: HTMLElement; references: CanvasResourceReference[]; excludedNodeIds: Set<string>; activeIndex: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onSelect: (reference: CanvasResourceReference) => void }) {
+function MentionMenu({ editor, references, allReferences, activeIndex, theme, onSelect }: { editor: HTMLElement; references: CanvasResourceReference[]; allReferences: CanvasResourceReference[]; activeIndex: number; theme: (typeof canvasThemes)[keyof typeof canvasThemes]; onSelect: (reference: CanvasResourceReference) => void }) {
     const selectedRef = useRef(false);
     const rect = editor.getBoundingClientRect();
     const menuWidth = Math.min(320, Math.max(240, window.innerWidth - 24));
@@ -280,10 +257,10 @@ function MentionMenu({ editor, references, excludedNodeIds, activeIndex, theme, 
                 >
                     <ReferencePreview reference={reference} />
                     <span className="min-w-0 flex-1">
-                        <span className="block font-medium">{reference.label}</span>
-                        <span className="block truncate opacity-65">{reference.text || reference.title}</span>
+                        <span className="block truncate font-medium">{reference.title || reference.label}</span>
+                        <span className="block truncate opacity-65">{reference.label}</span>
                     </span>
-                    {!excludedNodeIds.has(reference.nodeId) ? <Check className="size-4 shrink-0 text-[#2f80ff]" /> : null}
+                    <span className="shrink-0 text-[11px] opacity-55">@{Math.max(1, allReferences.findIndex((item) => item.nodeId === reference.nodeId) + 1)}</span>
                 </button>
             ))}
         </div>,
@@ -291,19 +268,18 @@ function MentionMenu({ editor, references, excludedNodeIds, activeIndex, theme, 
     );
 }
 
-function createInlineReference(reference: CanvasResourceReference, role: CanvasReferenceRole, theme: (typeof canvasThemes)[keyof typeof canvasThemes], onChange: () => void) {
+function createInlineReference(reference: CanvasResourceReference, theme: (typeof canvasThemes)[keyof typeof canvasThemes]) {
     const wrapper = document.createElement("span");
     wrapper.contentEditable = "false";
     wrapper.dataset.referenceNodeId = reference.nodeId;
-    wrapper.dataset.referenceRole = role;
-    wrapper.className = "mx-0.5 inline-flex min-h-8 max-w-56 items-center gap-1 overflow-hidden rounded-md border px-1 align-middle text-xs leading-none";
+    wrapper.className = "mx-0.5 inline-flex h-7 max-w-56 items-center gap-1 overflow-hidden rounded-md border px-1 align-middle text-xs leading-none";
     Object.assign(wrapper.style, { background: theme.toolbar.activeBg, borderColor: theme.node.stroke, color: theme.toolbar.activeText });
 
     if (reference.kind === "image" && reference.previewUrl) {
         const image = document.createElement("img");
         image.src = reference.previewUrl;
         image.alt = "";
-        image.className = "size-6 shrink-0 rounded object-cover";
+        image.className = "size-5 shrink-0 rounded object-cover";
         wrapper.appendChild(image);
     }
 
@@ -312,32 +288,7 @@ function createInlineReference(reference: CanvasResourceReference, role: CanvasR
     label.textContent = reference.label;
     wrapper.appendChild(label);
 
-    const select = document.createElement("select");
-    select.className = "h-7 min-w-12 rounded border-0 bg-transparent px-0.5 text-[10px] font-medium outline-none";
-    select.title = `${reference.label}的用途`;
-    referenceRoles.forEach((item) => {
-        const option = document.createElement("option");
-        option.value = item;
-        option.textContent = canvasReferenceRoleLabel(item);
-        option.selected = item === role;
-        select.appendChild(option);
-    });
-    select.addEventListener("pointerdown", (event) => event.stopPropagation());
-    select.addEventListener("click", (event) => event.stopPropagation());
-    select.addEventListener("change", () => {
-        wrapper.dataset.referenceRole = select.value;
-        onChange();
-    });
-    wrapper.appendChild(select);
     return wrapper;
-}
-
-function createExcludedReference(nodeId: string) {
-    const node = document.createElement("span");
-    node.contentEditable = "false";
-    node.dataset.excludedReferenceNodeId = nodeId;
-    node.hidden = true;
-    return node;
 }
 
 function serializeEditor(editor: HTMLElement) {
@@ -350,9 +301,7 @@ function serializeNodes(nodes: NodeListOf<ChildNode>) {
         if (node.nodeType === Node.TEXT_NODE) result += node.textContent || "";
         if (!(node instanceof HTMLElement)) return;
         const nodeId = node.dataset.referenceNodeId;
-        const excludedNodeId = node.dataset.excludedReferenceNodeId;
-        if (nodeId) result += canvasReferenceToken(nodeId, (node.dataset.referenceRole as CanvasReferenceRole | undefined) || "reference");
-        else if (excludedNodeId) result += excludedCanvasReferenceToken(excludedNodeId);
+        if (nodeId) result += canvasReferenceToken(nodeId);
         else if (node.tagName === "BR") result += "\n";
         else result += serializeNodes(node.childNodes);
     });
@@ -361,13 +310,13 @@ function serializeNodes(nodes: NodeListOf<ChildNode>) {
 
 function parseEditorTokens(value: string) {
     const pattern = /@\[node:([^;\]]+)(?:;role:(target|reference|subject|style|composition))?\]|@\[exclude:([^\]]+)\]/g;
-    const tokens: Array<{ type: "text"; value: string } | { type: "reference"; nodeId: string; role: CanvasReferenceRole } | { type: "exclude"; nodeId: string }> = [];
+    const tokens: Array<{ type: "text"; value: string } | { type: "reference"; nodeId: string } | { type: "exclude"; nodeId: string }> = [];
     let lastIndex = 0;
     for (const match of value.matchAll(pattern)) {
         if (match.index === undefined) continue;
         if (match.index > lastIndex) tokens.push({ type: "text", value: value.slice(lastIndex, match.index) });
         if (match[3]) tokens.push({ type: "exclude", nodeId: match[3] });
-        else tokens.push({ type: "reference", nodeId: match[1], role: (match[2] as CanvasReferenceRole | undefined) || "reference" });
+        else tokens.push({ type: "reference", nodeId: match[1] });
         lastIndex = match.index + match[0].length;
     }
     if (lastIndex < value.length) tokens.push({ type: "text", value: value.slice(lastIndex) });
@@ -442,8 +391,8 @@ function placeCaretAtEnd(element: HTMLElement) {
     selection?.addRange(range);
 }
 
-function ReferencePreview({ reference, compact = false }: { reference: CanvasResourceReference; compact?: boolean }) {
-    const size = compact ? "size-8" : "size-10";
+function ReferencePreview({ reference, compact = false, tile = false }: { reference: CanvasResourceReference; compact?: boolean; tile?: boolean }) {
+    const size = tile ? "size-full" : compact ? "size-8" : "size-10";
     if (reference.kind === "image" && reference.previewUrl) return <img src={reference.previewUrl} alt="" className={`${size} shrink-0 rounded object-cover`} />;
     if (reference.kind === "video" && reference.previewUrl) return <video src={reference.previewUrl} className={`${size} shrink-0 rounded bg-black object-cover`} muted preload="metadata" />;
     const Icon = reference.kind === "audio" ? Music2 : reference.kind === "video" ? Video : reference.kind === "image" ? ImageIcon : FileText;

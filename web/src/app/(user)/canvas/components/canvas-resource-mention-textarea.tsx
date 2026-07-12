@@ -24,10 +24,11 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange" | "val
     containerClassName?: string;
     inlineReferences?: boolean;
     targetNodeId?: string;
+    onDisconnectReference?: (nodeId: string) => void;
 };
 
 export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Props>(function CanvasResourceMentionTextarea(
-    { value, references, onChange, onSubmit, onKeyDown, className, containerClassName, style, inlineReferences, targetNodeId, ...props },
+    { value, references, onChange, onSubmit, onKeyDown, className, containerClassName, style, inlineReferences, targetNodeId, onDisconnectReference, ...props },
     forwardedRef,
 ) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -117,6 +118,7 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
                 style={style}
                 placeholder={typeof props.placeholder === "string" ? props.placeholder : undefined}
                 targetNodeId={targetNodeId}
+                onDisconnectReference={onDisconnectReference}
             />
         );
     }

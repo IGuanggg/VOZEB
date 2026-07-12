@@ -28,10 +28,11 @@ type CanvasNodePromptPanelProps = {
     onGenerate: (nodeId: string, mode: CanvasNodeGenerationMode, prompt: string) => void;
     onStop: (nodeId: string) => void;
     mentionReferences?: CanvasResourceReference[];
+    onDisconnectReference?: (nodeId: string, referenceNodeId: string) => void;
     onImageSettingsOpenChange?: (open: boolean) => void;
 };
 
-export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], onImageSettingsOpenChange }: CanvasNodePromptPanelProps) {
+export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfigChange, onGenerate, onStop, mentionReferences = [], onDisconnectReference, onImageSettingsOpenChange }: CanvasNodePromptPanelProps) {
     const globalConfig = useEffectiveConfig();
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -84,7 +85,8 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 onChange={updatePrompt}
                 onSubmit={submit}
                 inlineReferences
-                targetNodeId={hasImageContent ? node.id : undefined}
+                targetNodeId={isEditingExistingContent ? node.id : undefined}
+                onDisconnectReference={(referenceNodeId) => onDisconnectReference?.(node.id, referenceNodeId)}
                 className="thin-scrollbar h-28 w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl border px-3 py-2 text-sm leading-7 outline-none"
                 style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text }}
                 placeholder={promptPlaceholder(mode, hasImageContent, hasTextContent)}

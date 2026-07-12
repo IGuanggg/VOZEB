@@ -4,7 +4,7 @@ import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../types";
-import { hasCanvasReferenceToken, parseCanvasReferenceTokens, parseExcludedCanvasReferenceNodeIds, type CanvasReferenceRole } from "../utils/canvas-resource-mention-tokens";
+import { hasCanvasReferenceToken } from "../utils/canvas-resource-mention-tokens";
 import { getGenerationResourceNodes } from "../utils/canvas-resource-references";
 
 export type NodeGenerationContext = {
@@ -58,8 +58,7 @@ export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData
 }
 
 function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: string): NodeGenerationContext {
-    const excludedNodeIds = new Set(parseExcludedCanvasReferenceNodeIds(prompt));
-    const availableInputs = inputs.filter((input, index) => !excludedNodeIds.has(input.nodeId) && inputs.findIndex((candidate) => candidate.nodeId === input.nodeId) === index);
+    const availableInputs = inputs.filter((input, index) => inputs.findIndex((candidate) => candidate.nodeId === input.nodeId) === index);
     const inputByNodeId = new Map(availableInputs.map((input) => [input.nodeId, input]));
     const labelByNodeId = new Map<string, string>();
     const textBlocks: string[] = [];
@@ -68,15 +67,6 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
         const label = generationLabel(input.type, counts[input.type]++);
         labelByNodeId.set(input.nodeId, label);
         if (input.type === "text") textBlocks.push(`【${label}】\n${input.text || ""}`);
-    });
-
-    const roleLabels = new Map<CanvasReferenceRole, string[]>();
-    parseCanvasReferenceTokens(prompt).forEach((token) => {
-        const label = labelByNodeId.get(token.nodeId);
-        if (!label) return;
-        const labels = roleLabels.get(token.role) || [];
-        if (!labels.includes(label)) labels.push(label);
-        roleLabels.set(token.role, labels);
     });
 
     let nextPrompt = prompt
@@ -89,8 +79,6 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
         .replace(/@\[exclude:[^\]]+\]/g, "")
         .trim();
 
-    const roleSummary = Array.from(roleLabels.entries()).map(([role, labels]) => `${generationRoleLabel(role)}：${labels.join("、")}`);
-    if (roleSummary.length) nextPrompt = `${roleSummary.join("\n")}\n\n用户要求：\n${nextPrompt}`;
     if (textBlocks.length) nextPrompt = `${nextPrompt}\n\n${textBlocks.join("\n\n")}`.trim();
 
     const referenceImages = availableInputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
@@ -156,14 +144,6 @@ function generationLabel(type: NodeGenerationInput["type"], index: number) {
     if (type === "video") return seedanceReferenceLabel("video", index);
     if (type === "audio") return seedanceReferenceLabel("audio", index);
     return `文本${index + 1}`;
-}
-
-function generationRoleLabel(role: CanvasReferenceRole) {
-    if (role === "target") return "修改目标";
-    if (role === "subject") return "主体参考";
-    if (role === "style") return "风格参考";
-    if (role === "composition") return "构图参考";
-    return "参考素材";
 }
 
 function readReferenceImage(node: CanvasNodeData): ReferenceImage | null {
