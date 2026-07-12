@@ -94,6 +94,7 @@ export function serializePublicSettings(settings: AuthSettings) {
         site: settings.site,
         registrationEnabled: settings.registrationEnabled,
         emailRegistrationEnabled: settings.emailRegistrationEnabled,
+        allowUserApiConfig: settings.allowUserApiConfig,
         defaultPoints: settings.defaultPoints,
         checkInRewardPoints: settings.checkInRewardPoints,
         modelPointCosts: settings.modelPointCosts,

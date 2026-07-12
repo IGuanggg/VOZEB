@@ -30,7 +30,7 @@ export function CanvasConfigNodePanel({ node, isRunning, inputSummary, onConfigC
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const mode = node.metadata?.generationMode || "image";
     const config = buildNodeConfig(globalConfig, node, mode);
-    const count = Math.max(1, Math.min(15, Math.floor(Math.abs(Number(config.count)) || 1)));
+    const count = Math.max(1, Math.min(80, Math.floor(Math.abs(Number(config.count)) || 1)));
     const credits = requestCreditCost({
         apiSource: config.apiSource,
         modelPointCosts: config.modelPointCosts,
@@ -179,7 +179,7 @@ function InputChip({ label, value, style }: { label: string; value: string; styl
 
 function buildNodeConfig(globalConfig: AiConfig, node: CanvasNodeData, mode: CanvasGenerationMode): AiConfig {
     const defaultModel = mode === "image" ? globalConfig.imageModel : mode === "video" ? globalConfig.videoModel : mode === "audio" ? globalConfig.audioModel : globalConfig.textModel;
-    const metadataModel = node.metadata?.model || "";
+    const metadataModel = globalConfig.forceSystemDefaults ? "" : node.metadata?.model || "";
     const model = metadataModel && modelMatchesCanvasGenerationMode(metadataModel, mode) ? metadataModel : defaultModel || (mode === "audio" ? defaultConfig.audioModel : globalConfig.model || defaultConfig.model);
     return {
         ...globalConfig,

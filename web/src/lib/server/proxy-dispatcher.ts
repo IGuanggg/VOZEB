@@ -1,13 +1,21 @@
 import { execFileSync } from "node:child_process";
-import { ProxyAgent, setGlobalDispatcher } from "undici";
+import { Agent, ProxyAgent, setGlobalDispatcher } from "undici";
 
-let configuredProxy = "";
+let configuredProxy: string | null = null;
 let windowsProxyCache: string | null | undefined;
+const LONG_FETCH_TIMEOUT_MS = 20 * 60 * 1000;
 
 export function configureServerProxyDispatcher() {
     const proxy = resolveProxyUrl();
-    if (!proxy || proxy === configuredProxy) return;
-    setGlobalDispatcher(new ProxyAgent(proxy));
+    if (proxy === configuredProxy) return;
+    setGlobalDispatcher(
+        proxy
+            ? new ProxyAgent(proxy)
+            : new Agent({
+                  headersTimeout: LONG_FETCH_TIMEOUT_MS,
+                  bodyTimeout: LONG_FETCH_TIMEOUT_MS,
+              }),
+    );
     configuredProxy = proxy;
 }
 

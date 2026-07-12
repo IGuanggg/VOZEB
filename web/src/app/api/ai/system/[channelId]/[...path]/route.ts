@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { consumeUserPoints, getAuthSettings, isQuotaExceededError, refundUserPoints, type ApiCallFormat, type GenerationPointMultipliers, type PointUsageKind } from "@/lib/auth/store";
+import { consumeUserPoints, getAuthSettings, isQuotaExceededError, refundUserPoints, resolveSystemChannelApiKeyForUser, type ApiCallFormat, type GenerationPointMultipliers, type PointUsageKind } from "@/lib/auth/store";
 import { getCurrentUser } from "@/lib/auth/session";
 import { DEFAULT_CHANNEL_CONNECT_ERROR } from "@/lib/server/generation-errors";
 import { configureServerProxyDispatcher } from "@/lib/server/proxy-dispatcher";
@@ -51,6 +51,7 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
 
     if (isMediaProxyPath(path)) return proxySystemMediaRequest(request, channel);
 
+    const apiKey = shouldUseUserScopedApiKey(path) ? await resolveSystemChannelApiKeyForUser(currentUser.id, channel) : channel.apiKey;
     const target = targetUrl(channel.baseUrl, channel.apiFormat, path, new URL(request.url).search);
     const headers = new Headers();
     const contentType = request.headers.get("content-type");
@@ -58,10 +59,12 @@ async function proxySystemRequest(request: Request, context: RouteContext) {
     const accept = request.headers.get("accept");
     if (contentType && !isMultipart) headers.set("content-type", contentType);
     if (accept) headers.set("accept", accept);
-    if (channel.apiFormat === "gemini") headers.set("x-goog-api-key", channel.apiKey);
-    else headers.set("authorization", `Bearer ${channel.apiKey}`);
+    if (channel.apiFormat === "gemini") headers.set("x-goog-api-key", apiKey);
+    else headers.set("authorization", `Bearer ${apiKey}`);
 
     const requestBody = await readProxyRequestBody(request, isMultipart);
+    const modelError = validateChannelModel(request.method, channel.models, channel.apiFormat, path, contentType, requestBody.pointsPayload);
+    if (modelError) return NextResponse.json({ error: modelError }, { status: 400 });
     const pointsRequest = classifyPointsRequest(request.method, channel.apiFormat, path, contentType, requestBody.pointsPayload, settings.generationPointMultipliers);
     let pointsResult: Awaited<ReturnType<typeof consumeUserPoints>> | null = null;
     let refundedPointsRemaining: number | null = null;
@@ -147,6 +150,11 @@ async function proxySystemMediaRequest(request: Request, channel: SystemMediaCha
 
 function isMediaProxyPath(path: string[]) {
     return path[0] === "_media" || ((path[0] === "v1" || path[0] === "v1beta") && path[1] === "_media");
+}
+
+function shouldUseUserScopedApiKey(path: string[]) {
+    const cleanPath = path[0] === "v1" || path[0] === "v1beta" ? path.slice(1) : path;
+    return cleanPath[0] === "images";
 }
 
 function mediaTargetRequest(baseUrl: string, apiFormat: ApiCallFormat, value: string): { url: string; includeAuth: boolean } | null {
@@ -252,6 +260,22 @@ function classifyPointsRequest(method: string, apiFormat: ApiCallFormat, path: s
     if (apiFormat === "gemini" && routePath.includes(":generatecontent")) return { model, amount: 1, usageKind: hasGeminiImageResponseModality(payload) ? "image" : "text" };
 
     return null;
+}
+
+function validateChannelModel(method: string, allowedModels: string[], apiFormat: ApiCallFormat, path: string[], contentType: string | null, body?: ArrayBuffer | Record<string, unknown>) {
+    if (method.toUpperCase() !== "POST" || !allowedModels.length) return "";
+    const cleanPath = path[0] === "v1" || path[0] === "v1beta" ? path.slice(1) : path;
+    const payload = readRequestBody(contentType, body);
+    const model = readRequestModel(payload) || readPathModel(cleanPath);
+    if (!model) return "";
+    const normalizedModel = normalizeModelName(model);
+    return allowedModels.some((allowed) => normalizeModelName(allowed) === normalizedModel) ? "" : `模型 ${model} 不在该渠道允许列表中`;
+}
+
+function normalizeModelName(model: string) {
+    const value = model.trim();
+    const separator = value.indexOf("::");
+    return (separator >= 0 ? value.slice(separator + 2) : value).trim();
 }
 
 function readRequestModel(payload: Record<string, unknown>) {

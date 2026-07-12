@@ -45,7 +45,9 @@ type CanvasNodeProps = {
     onSetBatchPrimary?: (node: CanvasNodeData) => void;
     onRetry?: (node: CanvasNodeData) => void;
     onGenerateImage?: (node: CanvasNodeData) => void;
+    onEditImage?: (node: CanvasNodeData) => void;
     onViewImage?: (node: CanvasNodeData) => void;
+    onOpenDirector?: (node: CanvasNodeData) => void;
     onContextMenu: (event: React.MouseEvent, nodeId: string) => void;
 };
 
@@ -100,7 +102,9 @@ export const CanvasNode = React.memo(function CanvasNode({
     onSetBatchPrimary,
     onRetry,
     onGenerateImage,
+    onEditImage,
     onViewImage,
+    onOpenDirector,
     onContextMenu,
 }: CanvasNodeProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -276,7 +280,12 @@ export const CanvasNode = React.memo(function CanvasNode({
                     }
                     if (data.type === CanvasNodeType.Image && hasImageContent) {
                         event.stopPropagation();
-                        onViewImage?.(data);
+                        onEditImage?.(data);
+                        return;
+                    }
+                    if (data.type === CanvasNodeType.Director) {
+                        event.stopPropagation();
+                        onOpenDirector?.(data);
                         return;
                     }
                     if (data.type !== CanvasNodeType.Text) return;
@@ -335,10 +344,68 @@ export const CanvasNode = React.memo(function CanvasNode({
             {showPanel && renderPanel ? <div className="absolute left-1/2 top-full z-[70] w-[500px] -translate-x-1/2 pt-4">{renderPanel(data)}</div> : null}
         </div>
     );
-});
+}, areCanvasNodePropsEqual);
+
+function areCanvasNodePropsEqual(prev: CanvasNodeProps, next: CanvasNodeProps) {
+    return (
+        prev.data === next.data &&
+        prev.scale === next.scale &&
+        prev.isSelected === next.isSelected &&
+        prev.isRelated === next.isRelated &&
+        prev.isFocusRelated === next.isFocusRelated &&
+        prev.isConnectionTarget === next.isConnectionTarget &&
+        prev.isConnecting === next.isConnecting &&
+        prev.editRequestNonce === next.editRequestNonce &&
+        prev.showPanel === next.showPanel &&
+        prev.showImageInfo === next.showImageInfo &&
+        prev.batchCount === next.batchCount &&
+        prev.batchExpanded === next.batchExpanded &&
+        prev.batchClosing === next.batchClosing &&
+        prev.batchOpening === next.batchOpening &&
+        prev.batchRecovering === next.batchRecovering &&
+        sameBatchMotion(prev.batchMotion, next.batchMotion) &&
+        sameResourceReference(prev.resourceLabel, next.resourceLabel) &&
+        sameResourceReferences(prev.mentionReferences, next.mentionReferences) &&
+        prev.renderPanel === next.renderPanel &&
+        prev.renderNodeContent === next.renderNodeContent &&
+        prev.onMouseDown === next.onMouseDown &&
+        prev.onHoverStart === next.onHoverStart &&
+        prev.onHoverEnd === next.onHoverEnd &&
+        prev.onConnectStart === next.onConnectStart &&
+        prev.onResize === next.onResize &&
+        prev.onContentChange === next.onContentChange &&
+        prev.onToggleBatch === next.onToggleBatch &&
+        prev.onSetBatchPrimary === next.onSetBatchPrimary &&
+        prev.onRetry === next.onRetry &&
+        prev.onGenerateImage === next.onGenerateImage &&
+        prev.onEditImage === next.onEditImage &&
+        prev.onViewImage === next.onViewImage &&
+        prev.onOpenDirector === next.onOpenDirector &&
+        prev.onContextMenu === next.onContextMenu
+    );
+}
+
+function sameBatchMotion(a?: CanvasNodeProps["batchMotion"], b?: CanvasNodeProps["batchMotion"]) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return a.x === b.x && a.y === b.y && a.index === b.index;
+}
+
+function sameResourceReferences(a?: CanvasResourceReference[], b?: CanvasResourceReference[]) {
+    if (a === b) return true;
+    if (!a?.length && !b?.length) return true;
+    if (!a || !b || a.length !== b.length) return false;
+    return a.every((reference, index) => sameResourceReference(reference, b[index]));
+}
+
+function sameResourceReference(a?: CanvasResourceReference, b?: CanvasResourceReference) {
+    if (a === b) return true;
+    if (!a || !b) return false;
+    return a.id === b.id && a.nodeId === b.nodeId && a.kind === b.kind && a.label === b.label && a.title === b.title && a.previewUrl === b.previewUrl && a.text === b.text && a.active === b.active;
+}
 
 function NodeContent(props: NodeContentRendererProps) {
-    if (props.node.type === CanvasNodeType.Config && props.renderNodeContent) return props.renderNodeContent(props.node);
+    if ((props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director) && props.renderNodeContent) return props.renderNodeContent(props.node);
     if (props.isBatchRoot) return <ImageNodeContent {...props} />;
     if (props.node.metadata?.status === "loading") return <LoadingContent theme={props.theme} />;
     if (props.node.metadata?.status === "error") return <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />;
@@ -353,6 +420,7 @@ const nodeContentRenderers = {
     [CanvasNodeType.Config]: EmptyImageContent,
     [CanvasNodeType.Video]: VideoNodeContent,
     [CanvasNodeType.Audio]: AudioNodeContent,
+    [CanvasNodeType.Director]: UnknownNodeContent,
 } satisfies Record<CanvasNodeType, (props: NodeContentRendererProps) => ReactNode>;
 
 function LoadingContent({ theme }: Pick<NodeContentRendererProps, "theme">) {
@@ -368,19 +436,21 @@ function ErrorContent({ node, theme, onRetry }: Pick<NodeContentRendererProps, "
     return (
         <div className="flex max-w-[260px] flex-col items-center gap-3 px-5 text-center">
             <div className="text-xs leading-5 text-red-300">{node.metadata?.errorDetails || "生成失败"}</div>
-            <button
-                type="button"
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:scale-[1.02]"
-                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
-                onClick={(event) => {
-                    event.stopPropagation();
-                    onRetry?.(node);
-                }}
-                onMouseDown={(event) => event.stopPropagation()}
-            >
-                <RefreshCw className="size-3.5" />
-                重试
-            </button>
+            {!node.metadata?.retryDisabled ? (
+                <button
+                    type="button"
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-xs font-medium transition hover:scale-[1.02]"
+                    style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                    onClick={(event) => {
+                        event.stopPropagation();
+                        onRetry?.(node);
+                    }}
+                    onMouseDown={(event) => event.stopPropagation()}
+                >
+                    <RefreshCw className="size-3.5" />
+                    重试
+                </button>
+            ) : null}
         </div>
     );
 }
@@ -422,7 +492,6 @@ function TextContent({ node, theme, isEditingContent, textareaRef, mentionRefere
                     style={textStyle}
                     value={node.metadata?.content || ""}
                     references={mentionReferences}
-                    highlightLabels={false}
                     onChange={(value) => onContentChange(node.id, value)}
                     onBlur={onStopEditing}
                     onKeyDown={(event) => {

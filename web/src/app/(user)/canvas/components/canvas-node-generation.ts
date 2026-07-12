@@ -4,6 +4,7 @@ import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../types";
+import { hasCanvasReferenceToken } from "../utils/canvas-resource-mention-tokens";
 import { getGenerationResourceNodes } from "../utils/canvas-resource-references";
 
 export type NodeGenerationContext = {
@@ -30,7 +31,7 @@ export type NodeGenerationInput = {
 export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[], prompt: string): NodeGenerationContext {
     const inputs = buildNodeGenerationInputs(nodeId, nodes, connections);
     const sourceNode = nodes.find((node) => node.id === nodeId);
-    if (sourceNode?.type === CanvasNodeType.Config && Boolean(sourceNode.metadata?.composerContent?.trim())) {
+    if ((sourceNode?.type === CanvasNodeType.Config && Boolean(sourceNode.metadata?.composerContent?.trim())) || hasCanvasReferenceToken(prompt)) {
         return buildComposerGenerationContext(inputs, prompt);
     }
 

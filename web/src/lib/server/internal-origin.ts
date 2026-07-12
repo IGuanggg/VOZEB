@@ -1,6 +1,10 @@
 import { Agent, fetch as undiciFetch } from "undici";
 
-const internalDispatcher = new Agent({});
+const LONG_FETCH_TIMEOUT_MS = 20 * 60 * 1000;
+const internalDispatcher = new Agent({
+    headersTimeout: LONG_FETCH_TIMEOUT_MS,
+    bodyTimeout: LONG_FETCH_TIMEOUT_MS,
+});
 
 export function resolveInternalOrigin(publicOrigin: string) {
     const configured = normalizeOrigin(process.env.VOZEB_INTERNAL_ORIGIN || "");

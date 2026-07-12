@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { readReferenceAsset } from "@/lib/server/reference-asset-store";
+import { isPersistentReferenceAssetToken, readReferenceAsset } from "@/lib/server/reference-asset-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return new NextResponse(asset.bytes, {
         headers: {
             "Content-Type": asset.mimeType,
-            "Cache-Control": "public, max-age=86400",
+            "Cache-Control": isPersistentReferenceAssetToken(token) ? "public, max-age=31536000, immutable" : "public, max-age=86400",
             "Content-Length": String(asset.bytes.length),
         },
     });

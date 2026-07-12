@@ -14,6 +14,7 @@ export const NODE_DEFAULT_SIZE = {
     [CanvasNodeType.Config]: { width: 340, height: 240, title: "生成配置" },
     [CanvasNodeType.Video]: { width: 420, height: 236, title: "Video" },
     [CanvasNodeType.Audio]: { width: 340, height: 120, title: "Audio" },
+    [CanvasNodeType.Director]: { width: 420, height: 260, title: "3D导演台" },
 } satisfies Record<CanvasNodeType, { width: number; height: number; title: string }>;
 
 export const NODE_SPECS = {
@@ -36,6 +37,10 @@ export const NODE_SPECS = {
     [CanvasNodeType.Audio]: {
         ...NODE_DEFAULT_SIZE[CanvasNodeType.Audio],
         metadata: { content: "", status: "idle" },
+    },
+    [CanvasNodeType.Director]: {
+        ...NODE_DEFAULT_SIZE[CanvasNodeType.Director],
+        metadata: { status: "idle", directorCaptureCount: 0 },
     },
 } satisfies Record<CanvasNodeType, CanvasNodeSpec>;
 

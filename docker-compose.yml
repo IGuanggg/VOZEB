@@ -1,18 +1,32 @@
 services:
   app:
-    image: ghcr.io/csyqlz/vozeb:latest
+    image: ${VOZEB_IMAGE:-vozeb:mobile-canvas-upscale-r14}
     container_name: vozeb
     ports:
-      - "${VOZEB_BIND_HOST:-0.0.0.0}:3000:3000"
+      - "${VOZEB_BIND_HOST:-0.0.0.0}:3020:3000"
     volumes:
       - vozeb-data:/app/web/.data
     environment:
-      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-}
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-https://image.0909106.xyz}
       NEXT_PUBLIC_DOC_URL: ${NEXT_PUBLIC_DOC_URL:-}
       VOZEB_COOKIE_SECURE: ${VOZEB_COOKIE_SECURE:-}
       VOZEB_DATA_DIR: /app/web/.data
       VOZEB_INTERNAL_ORIGIN: http://127.0.0.1:3000
+      VOZEB_CHAT2API_USER_KEY_ENABLED: ${VOZEB_CHAT2API_USER_KEY_ENABLED:-true}
+      VOZEB_CHAT2API_USER_KEY_BASE_URL: ${VOZEB_CHAT2API_USER_KEY_BASE_URL:-}
+      VOZEB_CHAT2API_ADMIN_KEY: ${VOZEB_CHAT2API_ADMIN_KEY:-}
+      VOZEB_CHAT2API_ACCOUNT_GROUP_IDS: ${VOZEB_CHAT2API_ACCOUNT_GROUP_IDS:-}
+      VOZEB_IMAGE_GLOBAL_CONCURRENCY: ${VOZEB_IMAGE_GLOBAL_CONCURRENCY:-80}
+      VOZEB_IMAGE_PER_USER_CONCURRENCY: ${VOZEB_IMAGE_PER_USER_CONCURRENCY:-2}
+      VOZEB_IMAGE_MAX_QUEUED_PER_USER: ${VOZEB_IMAGE_MAX_QUEUED_PER_USER:-200}
     restart: unless-stopped
+    stop_grace_period: 30s
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 45s
 
 volumes:
   vozeb-data:

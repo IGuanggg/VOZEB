@@ -4,7 +4,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { ChangeEvent as ReactChangeEvent, DragEvent as ReactDragEvent, MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import dynamic from "next/dynamic";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { BookOpen, Bot, Home, ImageIcon, Images, List, Menu, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
+import { BookOpen, Bot, Clapperboard, Home, ImageIcon, Images, List, Maximize2, Menu, Music2, Plus, Redo2, Settings2, Trash2, Undo2, Upload, Video } from "lucide-react";
 import { saveAs } from "file-saver";
 
 import { createImageGenerationTask, waitForImageGenerationTask, type ImageGenerationTask } from "@/services/api/image";
@@ -24,7 +24,8 @@ import { canvasThemes, type CanvasBackgroundMode } from "@/lib/canvas-theme";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { useAssetStore } from "@/stores/use-asset-store";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { cropDataUrl, splitDataUrl, upscaleDataUrl } from "../utils/canvas-image-data";
+import { MAX_UPSCALE_LONG_EDGE, splitDataUrl, upscaleDataUrl } from "../utils/canvas-image-data";
+import { aiUpscaleDataUrl } from "../utils/canvas-ai-upscale";
 import { fitNodeSize, nodeSizeFromRatio } from "../utils/canvas-node-size";
 import { App, Button, Dropdown, Modal } from "antd";
 import { NODE_DEFAULT_SIZE, getNodeSpec } from "../constants";
@@ -34,10 +35,10 @@ import { CanvasConfigNodePanel } from "../components/canvas-config-node-panel";
 import { CANVAS_AGENT_PANEL_MOTION_MS } from "../components/canvas-agent-panel-motion";
 import { CanvasNodeContextMenu } from "../components/canvas-context-menu";
 import { CanvasNodeAngleDialog, type CanvasImageAngleParams } from "../components/canvas-node-angle-dialog";
-import { CanvasNodeCropDialog, type CanvasImageCropRect } from "../components/canvas-node-crop-dialog";
-import { CanvasNodeMaskEditDialog, type CanvasImageMaskEditPayload } from "../components/canvas-node-mask-edit-dialog";
+import { CanvasNodeImageEditor, type CanvasImageEditorLocalPayload, type CanvasImageEditorMaskPayload, type CanvasImageEditorMode } from "../components/canvas-node-image-editor";
 import { CanvasNodeSplitDialog, type CanvasImageSplitParams } from "../components/canvas-node-split-dialog";
 import { CanvasNodeUpscaleDialog, type CanvasImageUpscaleParams } from "../components/canvas-node-upscale-dialog";
+import { CanvasNodeSuperResolveDialog, type CanvasImageSuperResolveParams } from "../components/canvas-node-super-resolve-dialog";
 import { buildNodeGenerationContext, buildNodeGenerationInputs, buildNodeResponseMessages, hydrateNodeGenerationContext, type NodeGenerationInput } from "../components/canvas-node-generation";
 import { CanvasNodeHoverToolbar, CanvasNodeInfoModal } from "../components/canvas-node-hover-toolbar";
 import { VozebCanvas } from "../components/vozeb-canvas";
@@ -45,6 +46,7 @@ import { Minimap } from "../components/canvas-mini-map";
 import { CanvasNode } from "../components/canvas-node";
 import { CanvasNodePromptPanel, type CanvasNodeGenerationMode } from "../components/canvas-node-prompt-panel";
 import { CanvasToolbar } from "../components/canvas-toolbar";
+import { DirectorDeskHost, type DirectorDeskCapture } from "../components/director-desk-host";
 import type { InsertAssetPayload } from "../components/asset-picker-modal";
 import { CanvasZoomControls } from "../components/canvas-zoom-controls";
 import { useCanvasAgentStore } from "../stores/use-canvas-agent-store";
@@ -112,6 +114,7 @@ const NODE_STATUS_IDLE = "idle" as const;
 const NODE_STATUS_LOADING = "loading" as const;
 const NODE_STATUS_SUCCESS = "success" as const;
 const NODE_STATUS_ERROR = "error" as const;
+const DIRECTOR_ACCENT = "#2f80ff";
 const IMAGE_PROMPT_REVERSE_PRESET = `请根据参考图片反推一段适合用于 AI 生图的提示词。
 
 要求：
@@ -184,16 +187,9 @@ function CanvasRefreshShell() {
     );
 }
 
-function ConnectionCreateMenu({
-    pending,
-    onCreate,
-    onClose,
-}: {
-    pending: PendingConnectionCreate;
-    onCreate: (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.Video | CanvasNodeType.Audio) => void;
-    onClose: () => void;
-}) {
-    const theme = canvasThemes[useThemeStore((state) => state.theme)];
+function ConnectionCreateMenu({ pending, onCreate, onClose }: { pending: PendingConnectionCreate; onCreate: (type: CanvasNodeType) => void; onClose: () => void }) {
+    const colorTheme = useThemeStore((state) => state.theme);
+    const theme = canvasThemes[colorTheme];
     return (
         <div
             className="absolute z-[120] w-[300px] rounded-[18px] border p-3 shadow-2xl backdrop-blur"
@@ -216,6 +212,7 @@ function ConnectionCreateMenu({
                 <ConnectionCreateOption theme={theme} icon={<Video className="size-5" />} title="视频生成" onClick={() => onCreate(CanvasNodeType.Video)} />
                 <ConnectionCreateOption theme={theme} icon={<Music2 className="size-5" />} title="音频参考" onClick={() => onCreate(CanvasNodeType.Audio)} />
                 <ConnectionCreateOption theme={theme} icon={<Settings2 className="size-5" />} title="配置节点" description="模型、尺寸、数量和输入顺序" onClick={() => onCreate(CanvasNodeType.Config)} />
+                <ConnectionCreateOption theme={theme} icon={<Clapperboard className="size-5" />} title="3D导演台" description="连接图片作为场景背景" onClick={() => onCreate(CanvasNodeType.Director)} />
             </div>
         </div>
     );
@@ -303,7 +300,8 @@ function VozebCanvasPage() {
     const renameProject = useCanvasStore((state) => state.renameProject);
     const deleteProjects = useCanvasStore((state) => state.deleteProjects);
     const currentProject = useCanvasStore((state) => state.projects.find((project) => project.id === projectId));
-    const theme = canvasThemes[useThemeStore((state) => state.theme)];
+    const colorTheme = useThemeStore((state) => state.theme);
+    const theme = canvasThemes[colorTheme];
     const [nodes, setNodes] = useState<CanvasNodeData[]>([]);
     const [connections, setConnections] = useState<CanvasConnection[]>([]);
     const [chatSessions, setChatSessions] = useState<CanvasAssistantSession[]>([]);
@@ -332,12 +330,14 @@ function VozebCanvasPage() {
     const [editingNodeId, setEditingNodeId] = useState<string | null>(null);
     const [editRequestNonce, setEditRequestNonce] = useState(0);
     const [infoNodeId, setInfoNodeId] = useState<string | null>(null);
-    const [cropNodeId, setCropNodeId] = useState<string | null>(null);
-    const [maskEditNodeId, setMaskEditNodeId] = useState<string | null>(null);
+    const [imageEditorNodeId, setImageEditorNodeId] = useState<string | null>(null);
+    const [imageEditorMode, setImageEditorMode] = useState<CanvasImageEditorMode>("mask");
     const [splitNodeId, setSplitNodeId] = useState<string | null>(null);
     const [upscaleNodeId, setUpscaleNodeId] = useState<string | null>(null);
+    const [superResolveNodeId, setSuperResolveNodeId] = useState<string | null>(null);
     const [angleNodeId, setAngleNodeId] = useState<string | null>(null);
     const [previewNodeId, setPreviewNodeId] = useState<string | null>(null);
+    const [directorNodeId, setDirectorNodeId] = useState<string | null>(null);
     const [assistantCollapsed, setAssistantCollapsed] = useState(true);
     const [assistantMounted, setAssistantMounted] = useState(false);
     const [assistantClosing, setAssistantClosing] = useState(false);
@@ -397,6 +397,13 @@ function VozebCanvasPage() {
         const request = generationRequestsRef.current.get(targetNodeId);
         if (request?.controller === controller) generationRequestsRef.current.delete(targetNodeId);
     }, []);
+
+    const abortAllGenerationRequests = useCallback(() => {
+        generationRequestsRef.current.forEach((request) => request.controller.abort());
+        generationRequestsRef.current.clear();
+    }, []);
+
+    useEffect(() => () => abortAllGenerationRequests(), [abortAllGenerationRequests]);
 
     const stopGenerationByRunningId = useCallback((runningId: string) => {
         const affectedNodeIds = new Set<string>();
@@ -845,7 +852,7 @@ function VozebCanvasPage() {
         toolbarHideTimerRef.current = setTimeout(() => {
             setToolbarNodeId(null);
             toolbarHideTimerRef.current = null;
-        }, 120);
+        }, 450);
     }, []);
 
     const connectNodes = useCallback(
@@ -854,13 +861,14 @@ function VozebCanvasPage() {
 
             const connection = normalizeConnection(current.nodeId, targetNodeId, nodesRef.current, current.handleType);
             if (!connection) {
-                message.warning("配置节点之间不能连接");
+                message.warning("这些节点类型不能按当前方向连接");
                 return;
             }
             const { fromNodeId, toNodeId } = connection;
             const exists = connectionsRef.current.some((conn) => conn.fromNodeId === fromNodeId && conn.toNodeId === toNodeId);
             if (!exists) {
-                setConnections((prev) => [...prev, { id: `conn-${Date.now()}`, fromNodeId, toNodeId }]);
+                const nextConnection = { id: `conn-${Date.now()}`, fromNodeId, toNodeId };
+                setConnections((prev) => appendConnectionWithDirectorRules(prev, nextConnection, nodesRef.current));
             }
             setContextMenu(null);
         },
@@ -868,19 +876,19 @@ function VozebCanvasPage() {
     );
 
     const createConnectedNode = useCallback(
-        (type: CanvasNodeType.Image | CanvasNodeType.Text | CanvasNodeType.Config | CanvasNodeType.Video | CanvasNodeType.Audio, pending: PendingConnectionCreate) => {
+        (type: CanvasNodeType, pending: PendingConnectionCreate) => {
             const metadata = type === CanvasNodeType.Config ? { model: effectiveConfig.imageModel || effectiveConfig.model, size: effectiveConfig.size, count: getGenerationCount(effectiveConfig.canvasImageCount || effectiveConfig.count) } : undefined;
             const newNode = createCanvasNode(type, pending.position, metadata);
             const connection = normalizeConnection(pending.connection.nodeId, newNode.id, [...nodesRef.current, newNode], pending.connection.handleType);
             if (!connection) {
-                message.warning("配置节点之间不能连接");
+                message.warning("这些节点类型不能按当前方向连接");
                 return;
             }
             setNodes((prev) => [...prev, newNode]);
-            setConnections((prev) => [...prev, { id: nanoid(), ...connection }]);
+            setConnections((prev) => appendConnectionWithDirectorRules(prev, { id: nanoid(), ...connection }, [...nodesRef.current, newNode]));
             setSelectedNodeIds(new Set([newNode.id]));
             setSelectedConnectionId(null);
-            if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio) setDialogNodeId(newNode.id);
+            if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Director) setDialogNodeId(newNode.id);
             setPendingConnectionCreate(null);
             setConnecting(null);
         },
@@ -945,12 +953,20 @@ function VozebCanvasPage() {
     const nodeById = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
     const toolbarNode = toolbarNodeId ? nodeById.get(toolbarNodeId) || null : null;
     const infoNode = infoNodeId ? nodeById.get(infoNodeId) || null : null;
-    const cropNode = cropNodeId ? nodeById.get(cropNodeId) || null : null;
-    const maskEditNode = maskEditNodeId ? nodeById.get(maskEditNodeId) || null : null;
+    const imageEditorNode = imageEditorNodeId ? nodeById.get(imageEditorNodeId) || null : null;
     const splitNode = splitNodeId ? nodeById.get(splitNodeId) || null : null;
     const upscaleNode = upscaleNodeId ? nodeById.get(upscaleNodeId) || null : null;
+    const superResolveNode = superResolveNodeId ? nodeById.get(superResolveNodeId) || null : null;
     const angleNode = angleNodeId ? nodeById.get(angleNodeId) || null : null;
     const previewNode = previewNodeId ? nodeById.get(previewNodeId) || null : null;
+    const directorNode = directorNodeId ? nodeById.get(directorNodeId) || null : null;
+    const directorPanorama = useMemo(() => {
+        if (!directorNode) return null;
+        const connection = [...connections].reverse().find((item) => item.toNodeId === directorNode.id && nodeById.get(item.fromNodeId)?.type === CanvasNodeType.Image);
+        if (!connection) return null;
+        const imageNode = nodeById.get(connection.fromNodeId);
+        return imageNode?.type === CanvasNodeType.Image && imageNode.metadata?.content ? { connection, imageNode } : null;
+    }, [connections, directorNode, nodeById]);
     const hasMultipleSelectedNodes = selectedNodeIds.size > 1;
     const activeNodeId = hasMultipleSelectedNodes ? null : hoveredNodeId || (selectedNodeIds.size === 1 ? Array.from(selectedNodeIds)[0] : null);
     const batchChildCountById = useMemo(() => {
@@ -1074,7 +1090,7 @@ function VozebCanvasPage() {
             setNodes((prev) => [...prev, newNode]);
             setSelectedNodeIds(new Set([newNode.id]));
             setSelectedConnectionId(null);
-            if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio) setDialogNodeId(newNode.id);
+            if (type !== CanvasNodeType.Text && type !== CanvasNodeType.Audio && type !== CanvasNodeType.Director) setDialogNodeId(newNode.id);
         },
         [effectiveConfig.canvasImageCount, effectiveConfig.count, effectiveConfig.imageModel, effectiveConfig.model, effectiveConfig.size, getCanvasCenter],
     );
@@ -1085,6 +1101,11 @@ function VozebCanvasPage() {
             const allIds = new Set(ids);
             nodesRef.current.forEach((node) => {
                 if (ids.has(node.id)) node.metadata?.batchChildIds?.forEach((childId) => allIds.add(childId));
+            });
+            generationRequestsRef.current.forEach((request) => {
+                if (!allIds.has(request.targetNodeId) && !allIds.has(request.originNodeId) && !allIds.has(request.runningNodeId)) return;
+                request.controller.abort();
+                generationRequestsRef.current.delete(request.targetNodeId);
             });
             setNodes((prev) => {
                 const next = prev.filter((node) => !allIds.has(node.id));
@@ -1114,8 +1135,9 @@ function VozebCanvasPage() {
             setDialogNodeId((current) => (current && allIds.has(current) ? null : current));
             setEditingNodeId((current) => (current && allIds.has(current) ? null : current));
             setInfoNodeId((current) => (current && allIds.has(current) ? null : current));
-            setCropNodeId((current) => (current && allIds.has(current) ? null : current));
-            setMaskEditNodeId((current) => (current && allIds.has(current) ? null : current));
+            setImageEditorNodeId((current) => (current && allIds.has(current) ? null : current));
+            setUpscaleNodeId((current) => (current && allIds.has(current) ? null : current));
+            setSuperResolveNodeId((current) => (current && allIds.has(current) ? null : current));
             setAngleNodeId((current) => (current && allIds.has(current) ? null : current));
             setPreviewNodeId((current) => (current && allIds.has(current) ? null : current));
             setRunningNodeId((current) => (current && allIds.has(current) ? null : current));
@@ -1144,18 +1166,22 @@ function VozebCanvasPage() {
     }, [cancelPendingConnectionCreate]);
 
     const clearCanvas = useCallback(() => {
+        abortAllGenerationRequests();
         setNodes([]);
         setConnections([]);
         setInfoNodeId(null);
-        setCropNodeId(null);
-        setMaskEditNodeId(null);
+        setImageEditorNodeId(null);
+        setSplitNodeId(null);
+        setUpscaleNodeId(null);
+        setSuperResolveNodeId(null);
         setAngleNodeId(null);
         setPreviewNodeId(null);
+        setDirectorNodeId(null);
         setRunningNodeId(null);
         deselectCanvas();
         setClearConfirmOpen(false);
         cleanupCanvasFiles({ projectId, nodes: [], chatSessions: [] });
-    }, [cleanupCanvasFiles, deselectCanvas, projectId]);
+    }, [abortAllGenerationRequests, cleanupCanvasFiles, deselectCanvas, projectId]);
 
     const duplicateNode = useCallback((nodeId: string) => {
         const source = nodesRef.current.find((node) => node.id === nodeId);
@@ -1172,7 +1198,7 @@ function VozebCanvasPage() {
         setNodes((prev) => [...prev, next]);
         setSelectedNodeIds(new Set([id]));
         setSelectedConnectionId(null);
-        setDialogNodeId(id);
+        setDialogNodeId(next.type === CanvasNodeType.Director ? null : id);
     }, []);
 
     const copySelectedNodes = useCallback(() => {
@@ -1246,7 +1272,7 @@ function VozebCanvasPage() {
         setSelectedNodeIds(new Set(nextNodes.map((node) => node.id)));
         setSelectedConnectionId(null);
         setContextMenu(null);
-        setDialogNodeId(nextNodes[0]?.id || null);
+        setDialogNodeId(nextNodes[0]?.type === CanvasNodeType.Director ? null : nextNodes[0]?.id || null);
         return true;
     }, [getCanvasCenter]);
 
@@ -1325,7 +1351,7 @@ function VozebCanvasPage() {
 
             if (!event.ctrlKey && !event.metaKey) {
                 setSelectionBox(null);
-                setSelectedNodeIds(new Set());
+                setSelectedNodeIds((current) => (current.size ? new Set() : current));
                 setSelectedConnectionId(null);
                 return;
             }
@@ -1342,7 +1368,7 @@ function VozebCanvasPage() {
             selectionBoxRef.current = nextSelectionBox;
             setSelectionBox(nextSelectionBox);
             if (!event.shiftKey) {
-                setSelectedNodeIds(new Set());
+                setSelectedNodeIds((current) => (current.size ? new Set() : current));
             }
 
             setSelectedConnectionId(null);
@@ -1357,25 +1383,27 @@ function VozebCanvasPage() {
         }
         setContextMenu(null);
         setHoveredNodeId(null);
-        setToolbarNodeId(null);
         setSelectedConnectionId(null);
 
         const currentSelected = selectedNodeIdsRef.current;
         const currentNodes = nodesRef.current;
-        const nextSelected = new Set(currentSelected);
+        let nextSelected = currentSelected;
+        let selectionChanged = false;
 
         if (event.shiftKey || event.metaKey || event.ctrlKey) {
+            nextSelected = new Set(currentSelected);
             if (nextSelected.has(nodeId)) {
                 nextSelected.delete(nodeId);
             } else {
                 nextSelected.add(nodeId);
             }
-        } else if (!nextSelected.has(nodeId)) {
-            nextSelected.clear();
-            nextSelected.add(nodeId);
+            selectionChanged = true;
+        } else if (!(currentSelected.size === 1 && currentSelected.has(nodeId))) {
+            nextSelected = new Set([nodeId]);
+            selectionChanged = true;
         }
 
-        setSelectedNodeIds(nextSelected);
+        if (selectionChanged) setSelectedNodeIds(nextSelected);
         const dragIds = new Set(nextSelected);
         currentNodes.forEach((node) => {
             if (nextSelected.has(node.id)) node.metadata?.batchChildIds?.forEach((childId) => dragIds.add(childId));
@@ -1423,6 +1451,7 @@ function VozebCanvasPage() {
         dragRef.current.hasMoved = false;
         dragRef.current.initialSelectedNodes = [];
         if (wasClick && clickedNodeId) {
+            keepNodeToolbar(clickedNodeId);
             const clickedNode = nodesRef.current.find((node) => node.id === clickedNodeId);
             if (clickedNode?.type === CanvasNodeType.Text) {
                 setDialogNodeId((current) => (current === clickedNodeId ? current : null));
@@ -1430,7 +1459,23 @@ function VozebCanvasPage() {
                 setDialogNodeId(clickedNodeId);
             }
         }
-    }, []);
+    }, [keepNodeToolbar]);
+
+    const cancelNodeInteractionForTouchGesture = useCallback(() => {
+        if (rafRef.current) {
+            cancelAnimationFrame(rafRef.current);
+            rafRef.current = null;
+        }
+        historyPausedRef.current = false;
+        nodeDraggingRef.current = false;
+        dragRef.current.isDraggingNode = false;
+        dragRef.current.hasMoved = false;
+        dragRef.current.initialSelectedNodes = [];
+        selectionBoxRef.current = null;
+        setIsNodeDragging(false);
+        setSelectionBox(null);
+        setConnecting(null);
+    }, [setConnecting]);
 
     const handleGlobalMouseMove = useCallback(
         (event: MouseEvent) => {
@@ -1752,8 +1797,7 @@ function VozebCanvasPage() {
                 setDialogNodeId(null);
                 setEditingNodeId(null);
                 setInfoNodeId(null);
-                setCropNodeId(null);
-                setMaskEditNodeId(null);
+                setImageEditorNodeId(null);
                 setPendingConnectionCreate(null);
             }
         };
@@ -1959,30 +2003,50 @@ function VozebCanvasPage() {
         [effectiveConfig.model, effectiveConfig.textModel, message],
     );
 
-    const cropImageNode = useCallback(async (node: CanvasNodeData, crop: CanvasImageCropRect) => {
-        if (!node.metadata?.content) return;
-        const cropped = await cropDataUrl(node.metadata.content, crop);
-        const image = await uploadCanvasImage(cropped);
-        const width = Math.min(node.width, Math.max(220, image.width));
-        const childId = nanoid();
-        const child: CanvasNodeData = {
-            id: childId,
-            type: CanvasNodeType.Image,
-            title: "Cropped Image",
-            position: { x: node.position.x + node.width + 96, y: node.position.y },
-            width,
-            height: width * (image.height / image.width),
-            metadata: {
-                ...imageMetadata(image),
-                prompt: node.metadata?.prompt,
-            },
-        };
-        setNodes((prev) => [...prev, child]);
-        setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
-        setSelectedNodeIds(new Set([childId]));
-        setDialogNodeId(childId);
-        setCropNodeId(null);
-    }, []);
+    const saveEditedImageNode = useCallback(
+        async (node: CanvasNodeData, payload: CanvasImageEditorLocalPayload) => {
+            if (!node.metadata?.content) return;
+            const image = await uploadCanvasImage(payload.dataUrl);
+            setImageEditorNodeId(null);
+            if (payload.action === "replace") {
+                const width = node.width;
+                setNodes((prev) =>
+                    prev.map((item) =>
+                        item.id === node.id
+                            ? {
+                                  ...item,
+                                  title: payload.title || item.title,
+                                  width,
+                                  height: width * (image.height / image.width),
+                                  metadata: { ...item.metadata, ...imageMetadata(image), imageTask: undefined, errorDetails: undefined },
+                              }
+                            : item,
+                    ),
+                );
+                setSelectedNodeIds(new Set([node.id]));
+                message.success("已替换当前图片");
+                return;
+            }
+
+            const childId = nanoid();
+            const size = fitNodeSize(image.width, image.height);
+            const child: CanvasNodeData = {
+                id: childId,
+                type: CanvasNodeType.Image,
+                title: payload.title || "编辑图片",
+                position: { x: node.position.x + node.width + 96, y: node.position.y },
+                width: size.width,
+                height: size.height,
+                metadata: { ...imageMetadata(image), prompt: node.metadata?.prompt },
+            };
+            setNodes((prev) => [...prev, child]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
+            setSelectedNodeIds(new Set([childId]));
+            setSelectedConnectionId(null);
+            message.success("已生成编辑结果节点");
+        },
+        [message],
+    );
 
     const splitImageNode = useCallback(
         async (node: CanvasNodeData, params: CanvasImageSplitParams) => {
@@ -2023,7 +2087,7 @@ function VozebCanvasPage() {
     );
 
     const maskEditImageNode = useCallback(
-        async (node: CanvasNodeData, payload: CanvasImageMaskEditPayload) => {
+        async (node: CanvasNodeData, payload: CanvasImageEditorMaskPayload) => {
             if (!node.metadata?.content) return;
             const generationConfig = { ...buildGenerationConfig(effectiveConfig, node, "image"), count: "1", size: node.metadata?.size || "auto" };
             if (!isAiConfigReady(generationConfig, generationConfig.model)) {
@@ -2032,37 +2096,41 @@ function VozebCanvasPage() {
             }
             const userPrompt = payload.prompt.trim();
             const prompt = `只修改蒙版透明区域，其他区域保持不变。${userPrompt}`;
-            const childId = nanoid();
+            const targetId = payload.action === "replace" ? node.id : nanoid();
             const source = canvasNodeReferenceImage(node);
             const generationMetadata = buildImageGenerationMetadata("edit", generationConfig, 1, [source]);
-            setMaskEditNodeId(null);
-            setRunningNodeId(childId);
-            setNodes((prev) => [
-                ...prev,
-                {
-                    id: childId,
-                    type: CanvasNodeType.Image,
-                    title: userPrompt.slice(0, 32) || "局部编辑结果",
-                    position: { x: node.position.x + node.width + 96, y: node.position.y },
-                    width: node.width,
-                    height: node.height,
-                    metadata: { prompt, status: NODE_STATUS_LOADING, ...generationMetadata },
-                },
-            ]);
-            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
-            setSelectedNodeIds(new Set([childId]));
+            setImageEditorNodeId(null);
+            setRunningNodeId(targetId);
+            if (payload.action === "replace") {
+                setNodes((prev) => prev.map((item) => (item.id === node.id ? { ...item, metadata: { ...item.metadata, prompt, status: NODE_STATUS_LOADING, ...generationMetadata, errorDetails: undefined } } : item)));
+            } else {
+                setNodes((prev) => [
+                    ...prev,
+                    {
+                        id: targetId,
+                        type: CanvasNodeType.Image,
+                        title: userPrompt.slice(0, 32) || "局部编辑结果",
+                        position: { x: node.position.x + node.width + 96, y: node.position.y },
+                        width: node.width,
+                        height: node.height,
+                        metadata: { prompt, status: NODE_STATUS_LOADING, ...generationMetadata },
+                    },
+                ]);
+                setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: targetId }]);
+            }
+            setSelectedNodeIds(new Set([targetId]));
             setSelectedConnectionId(null);
-            setDialogNodeId(childId);
-            const controller = startGenerationRequest(childId, node.id, childId);
+            setDialogNodeId(payload.action === "new" ? targetId : null);
+            const controller = startGenerationRequest(targetId, node.id, targetId);
             try {
-                await startAndCompleteImageTask(childId, generationConfig, prompt, [source], { id: `${node.id}-mask`, name: "mask.png", type: "image/png", dataUrl: payload.maskDataUrl }, controller);
+                await startAndCompleteImageTask(targetId, generationConfig, prompt, [source], { id: `${node.id}-mask`, name: "mask.png", type: "image/png", dataUrl: payload.maskDataUrl }, controller);
             } catch (error) {
                 if (isGenerationCanceled(error)) return;
                 const errorDetails = error instanceof Error ? error.message : "局部修改失败";
                 message.error(errorDetails);
-                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails, imageTask: undefined } } : item)));
+                setNodes((prev) => prev.map((item) => (item.id === targetId ? { ...item, metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails, imageTask: undefined } } : item)));
             } finally {
-                finishGenerationRequest(childId, controller);
+                finishGenerationRequest(targetId, controller);
                 setRunningNodeId(null);
             }
         },
@@ -2093,6 +2161,97 @@ function VozebCanvasPage() {
         setSelectedNodeIds(new Set([childId]));
         setDialogNodeId(childId);
     }, []);
+
+    const superResolveImageNode = useCallback(
+        async (node: CanvasNodeData, params: CanvasImageSuperResolveParams) => {
+            if (!node.metadata?.content) return;
+            setSuperResolveNodeId(null);
+            const childId = nanoid();
+            const sourceWidth = node.metadata.naturalWidth || node.width;
+            const sourceHeight = node.metadata.naturalHeight || node.height;
+            const displaySize = fitNodeSize(sourceWidth * params.factor, sourceHeight * params.factor);
+            const controller = startGenerationRequest(childId, node.id, childId);
+            let lastProgress = -1;
+
+            setRunningNodeId(childId);
+            setNodes((prev) => [
+                ...prev,
+                {
+                    id: childId,
+                    type: CanvasNodeType.Image,
+                    title: "AI 超清排队中",
+                    position: { x: node.position.x + node.width + 96, y: node.position.y },
+                    width: displaySize.width,
+                    height: displaySize.height,
+                    metadata: { prompt: node.metadata?.prompt, status: NODE_STATUS_LOADING, retryDisabled: true },
+                },
+            ]);
+            setConnections((prev) => [...prev, { id: nanoid(), fromNodeId: node.id, toNodeId: childId }]);
+            setSelectedNodeIds(new Set([childId]));
+            setSelectedConnectionId(null);
+
+            try {
+                let usedCompatibilityMode = false;
+                let upscaled: string;
+                try {
+                    upscaled = await aiUpscaleDataUrl(node.metadata.content, {
+                        factor: params.factor,
+                        signal: controller.signal,
+                        onProgress: (progress) => {
+                            const percent = Math.round(progress * 100);
+                            if (percent === lastProgress || (percent < 100 && percent % 5 !== 0)) return;
+                            lastProgress = percent;
+                            setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, title: `AI 超清 ${percent}%` } : item)));
+                        },
+                    });
+                } catch (aiError) {
+                    if (isGenerationCanceled(aiError) || controller.signal.aborted) throw aiError;
+                    usedCompatibilityMode = true;
+                    setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, title: "高清兼容模式" } : item)));
+                    message.warning("本地 AI 当前不可用，已自动切换高质量兼容放大");
+                    upscaled = await upscaleDataUrl(node.metadata.content, {
+                        targetLongEdge: Math.min(MAX_UPSCALE_LONG_EDGE, Math.max(sourceWidth, sourceHeight) * params.factor),
+                        algorithm: "high",
+                    });
+                }
+                const image = await uploadCanvasImage(upscaled);
+                const finalSize = fitNodeSize(image.width, image.height);
+                setNodes((prev) =>
+                    prev.map((item) =>
+                        item.id === childId
+                            ? {
+                                  ...item,
+                                  title: usedCompatibilityMode ? `高清放大 ${params.factor}x` : `AI 超清 ${params.factor}x`,
+                                  width: finalSize.width,
+                                  height: finalSize.height,
+                                  metadata: { ...imageMetadata(image), prompt: node.metadata?.prompt, retryDisabled: undefined },
+                              }
+                            : item,
+                    ),
+                );
+                setDialogNodeId(childId);
+            } catch (error) {
+                if (isGenerationCanceled(error) || controller.signal.aborted) {
+                    setNodes((prev) => prev.filter((item) => item.id !== childId));
+                    setConnections((prev) => prev.filter((connection) => connection.fromNodeId !== childId && connection.toNodeId !== childId));
+                    setSelectedNodeIds((current) => {
+                        if (!current.has(childId)) return current;
+                        const next = new Set(current);
+                        next.delete(childId);
+                        return next;
+                    });
+                    return;
+                }
+                const errorDetails = error instanceof Error ? error.message : "AI 超清失败";
+                message.error(errorDetails);
+                setNodes((prev) => prev.map((item) => (item.id === childId ? { ...item, title: "AI 超清失败", metadata: { ...item.metadata, status: NODE_STATUS_ERROR, errorDetails, retryDisabled: true } } : item)));
+            } finally {
+                finishGenerationRequest(childId, controller);
+                setRunningNodeId((current) => (current === childId ? null : current));
+            }
+        },
+        [finishGenerationRequest, message, startGenerationRequest],
+    );
 
     const generateAngleNode = useCallback(
         async (node: CanvasNodeData, params: CanvasImageAngleParams) => {
@@ -2332,12 +2491,12 @@ function VozebCanvasPage() {
             try {
                 if (mode === "image") {
                     const count = getGenerationCount(generationConfig.count);
-                    const batchConcurrency = Math.max(1, Math.min(10, Math.floor(Number(effectiveConfig.generationConcurrency?.image) || count)));
+                    const batchConcurrency = Math.max(1, Math.min(80, Math.floor(Number(effectiveConfig.generationConcurrency?.image) || count)));
                     const isConfigNode = sourceNode?.type === CanvasNodeType.Config;
                     const isImageNode = sourceNode?.type === CanvasNodeType.Image;
                     const isEmptyImageNode = isImageNode && !sourceNode?.metadata?.content;
                     const sourceReference = isImageNode && sourceNode?.metadata?.content ? [canvasNodeReferenceImage(sourceNode)] : [];
-                    const referenceImages = sourceReference.length ? sourceReference : generationContext.referenceImages;
+                    const referenceImages = [...sourceReference, ...generationContext.referenceImages.filter((reference) => !sourceReference.some((source) => source.id === reference.id))];
                     const generationType = referenceImages.length ? ("edit" as const) : ("generation" as const);
                     const generationMetadata = buildImageGenerationMetadata(generationType, generationConfig, count, referenceImages);
                     const parentConfig = NODE_DEFAULT_SIZE[isConfigNode ? CanvasNodeType.Config : isImageNode ? CanvasNodeType.Image : CanvasNodeType.Text];
@@ -2833,6 +2992,207 @@ function VozebCanvasPage() {
         }, CANVAS_AGENT_PANEL_MOTION_MS);
     };
 
+    const emptyMentionReferences = useMemo<ReturnType<typeof buildNodeMentionReferences>>(() => [], []);
+    const handleNodeHoverStart = useCallback(
+        (nodeId: string) => {
+            if (nodeDraggingRef.current) return;
+            setHoveredNodeId((current) => (current === nodeId ? current : nodeId));
+            keepNodeToolbar(nodeId);
+        },
+        [keepNodeToolbar],
+    );
+    const handleNodeHoverEnd = useCallback(
+        (nodeId: string) => {
+            setHoveredNodeId((current) => (current === nodeId ? null : current));
+            hideNodeToolbar();
+        },
+        [hideNodeToolbar],
+    );
+    const handleNodeViewImage = useCallback((node: CanvasNodeData) => {
+        setPreviewNodeId((current) => (current === node.id ? current : node.id));
+    }, []);
+    const openImageEditor = useCallback((node: CanvasNodeData, mode: CanvasImageEditorMode = "mask") => {
+        if (node.type !== CanvasNodeType.Image || !node.metadata?.content) return;
+        setImageEditorMode(mode);
+        setImageEditorNodeId(node.id);
+        setDialogNodeId(null);
+        setPreviewNodeId(null);
+        setToolbarNodeId(null);
+    }, []);
+    const handleNodeContextMenu = useCallback((event: ReactMouseEvent, id: string) => {
+        event.preventDefault();
+        event.stopPropagation();
+        dragRef.current.hasMoved = true;
+        dragRef.current.isDraggingNode = false;
+        nodeDraggingRef.current = false;
+        setIsNodeDragging(false);
+        setDialogNodeId(null);
+        setEditingNodeId(null);
+        setToolbarNodeId(null);
+        setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
+    }, []);
+    const handleNodeRetry = useCallback((node: CanvasNodeData) => void handleRetryNode(node), [handleRetryNode]);
+    const openDirectorDesk = useCallback((node: CanvasNodeData) => {
+        if (node.type !== CanvasNodeType.Director) return;
+        setDialogNodeId(null);
+        setDirectorNodeId(node.id);
+    }, []);
+    const removeDirectorPanorama = useCallback((connectionId: string) => {
+        setConnections((current) => current.filter((connection) => connection.id !== connectionId));
+    }, []);
+    const updateDirectorProject = useCallback((nodeId: string, project: unknown) => {
+        setNodes((current) => current.map((node) => (node.id === nodeId && node.type === CanvasNodeType.Director ? { ...node, metadata: { ...node.metadata, directorProject: project } } : node)));
+    }, []);
+    const insertDirectorCaptures = useCallback(
+        async (sourceNodeId: string, captures: DirectorDeskCapture[]) => {
+            const sourceNode = nodesRef.current.find((node) => node.id === sourceNodeId && node.type === CanvasNodeType.Director);
+            if (!sourceNode || !captures.length) return;
+            try {
+                const uploaded: UploadedImage[] = [];
+                for (let index = 0; index < captures.length; index += 3) {
+                    uploaded.push(...(await Promise.all(captures.slice(index, index + 3).map((capture) => uploadCanvasImage(capture.dataUrl)))));
+                }
+                const currentSourceNode = nodesRef.current.find((node) => node.id === sourceNodeId && node.type === CanvasNodeType.Director);
+                if (!currentSourceNode) return;
+                const imageSpec = NODE_DEFAULT_SIZE[CanvasNodeType.Image];
+                const gap = 32;
+                const columns = Math.min(uploaded.length, 3);
+                const captureNodes = uploaded.map((image, index) => {
+                    const size = fitNodeSize(image.width, image.height, imageSpec.width, imageSpec.height);
+                    const column = index % columns;
+                    const row = Math.floor(index / columns);
+                    return {
+                        id: `image-${Date.now()}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+                        type: CanvasNodeType.Image,
+                        title: captures[index]?.fileName?.replace(/\.[^.]+$/, "") || `导演台镜头 ${index + 1}`,
+                        position: {
+                            x: currentSourceNode.position.x + currentSourceNode.width + 56 + column * (imageSpec.width + gap),
+                            y: currentSourceNode.position.y + row * (imageSpec.height + gap),
+                        },
+                        width: size.width,
+                        height: size.height,
+                        metadata: imageMetadata(image),
+                    } satisfies CanvasNodeData;
+                });
+                const nextNodes = nodesRef.current.map((node) => (node.id === sourceNodeId ? { ...node, metadata: { ...node.metadata, directorCaptureCount: (node.metadata?.directorCaptureCount || 0) + captureNodes.length } } : node)).concat(captureNodes);
+                const nextConnections = connectionsRef.current.concat(captureNodes.map((node) => ({ id: nanoid(), fromNodeId: sourceNodeId, toNodeId: node.id })));
+                nodesRef.current = nextNodes;
+                connectionsRef.current = nextConnections;
+                setNodes(nextNodes);
+                setConnections(nextConnections);
+                setSelectedNodeIds(new Set(captureNodes.map((node) => node.id)));
+                message.success(`已将 ${captureNodes.length} 张导演台截图放回画布`);
+            } catch (error) {
+                message.error(error instanceof Error ? error.message : "导演台截图保存失败");
+                throw error;
+            }
+        },
+        [message],
+    );
+    const renderCanvasNodePanel = useCallback(
+        (panelNode: CanvasNodeData) =>
+            panelNode.type === CanvasNodeType.Config ? (
+                <CanvasConfigComposer
+                    value={panelNode.metadata?.composerContent ?? panelNode.metadata?.prompt ?? ""}
+                    inputs={configInputsById.get(panelNode.id) || []}
+                    onChange={(composerContent) => handleConfigNodeChange(panelNode.id, { composerContent })}
+                    onClose={() => setDialogNodeId(null)}
+                />
+            ) : (
+                <CanvasNodePromptPanel
+                    node={panelNode}
+                    isRunning={runningNodeId === panelNode.id}
+                    mentionReferences={mentionReferencesByNodeId.get(panelNode.id) || emptyMentionReferences}
+                    onPromptChange={handleNodePromptChange}
+                    onConfigChange={handleConfigNodeChange}
+                    onGenerate={handleGenerateNode}
+                    onStop={confirmStopGeneration}
+                    onImageSettingsOpenChange={(open) => {
+                        setNodeImageSettingsOpen(open);
+                        if (open) setToolbarNodeId(null);
+                    }}
+                />
+            ),
+        [configInputsById, confirmStopGeneration, emptyMentionReferences, handleConfigNodeChange, handleGenerateNode, handleNodePromptChange, mentionReferencesByNodeId, runningNodeId],
+    );
+    const renderCanvasNodeContent = useCallback(
+        (contentNode: CanvasNodeData) => {
+            if (contentNode.type === CanvasNodeType.Director) {
+                const hasPanorama = connections.some((connection) => connection.toNodeId === contentNode.id && nodeById.get(connection.fromNodeId)?.type === CanvasNodeType.Image);
+                return (
+                    <div className="flex h-full w-full flex-col overflow-hidden p-4" style={{ background: theme.node.fill, color: theme.node.text }}>
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 items-center gap-2.5">
+                                <Clapperboard className="size-5 shrink-0" style={{ color: DIRECTOR_ACCENT }} />
+                                <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold">3D导演台</div>
+                                    <div className="truncate text-[11px]" style={{ color: theme.node.muted }}>
+                                        {hasPanorama ? "已接入画布背景" : "连接图片可作为场景背景"}
+                                    </div>
+                                </div>
+                            </div>
+                            <button
+                                type="button"
+                                className="grid size-9 shrink-0 place-items-center rounded-md border transition hover:scale-[1.03]"
+                                style={{ background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.node.text }}
+                                onClick={(event) => {
+                                    event.stopPropagation();
+                                    openDirectorDesk(contentNode);
+                                }}
+                                onMouseDown={(event) => event.stopPropagation()}
+                                title="打开 3D 导演台"
+                                aria-label="打开 3D 导演台"
+                            >
+                                <Maximize2 className="size-4" />
+                            </button>
+                        </div>
+                        <button
+                            type="button"
+                            className="group mt-4 min-h-0 flex-1 overflow-hidden rounded-md border text-left transition"
+                            style={{ background: theme.canvas.background, borderColor: theme.node.stroke }}
+                            onClick={(event) => {
+                                event.stopPropagation();
+                                openDirectorDesk(contentNode);
+                            }}
+                            onMouseDown={(event) => event.stopPropagation()}
+                        >
+                            <div className="relative h-full min-h-[120px] overflow-hidden">
+                                <div className="absolute inset-x-0 bottom-0 h-px" style={{ background: theme.node.stroke }} />
+                                <div className="absolute bottom-0 left-1/2 h-[85%] w-px -translate-x-1/2" style={{ background: theme.node.stroke }} />
+                                <div className="absolute bottom-0 left-[24%] h-[70%] w-px -rotate-[24deg] origin-bottom" style={{ background: theme.node.stroke }} />
+                                <div className="absolute bottom-0 right-[24%] h-[70%] w-px rotate-[24deg] origin-bottom" style={{ background: theme.node.stroke }} />
+                                <div className="absolute inset-0 grid place-items-center">
+                                    <div className="flex items-center gap-2 text-xs font-medium transition group-hover:scale-[1.03]" style={{ color: theme.node.muted }}>
+                                        <Maximize2 className="size-4" />
+                                        进入导演台
+                                    </div>
+                                </div>
+                                <div className="absolute bottom-2 left-3 text-[10px]" style={{ color: theme.node.muted }}>
+                                    已回传 {contentNode.metadata?.directorCaptureCount || 0} 张镜头
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+                );
+            }
+            return (
+                <CanvasConfigNodePanel
+                    node={contentNode}
+                    isRunning={runningNodeId === contentNode.id}
+                    inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}
+                    onConfigChange={handleConfigNodeChange}
+                    onComposerToggle={() => setDialogNodeId((current) => (current === contentNode.id ? null : contentNode.id))}
+                    onStop={confirmStopGeneration}
+                    onGenerate={(nodeId) => {
+                        const target = nodesRef.current.find((item) => item.id === nodeId);
+                        void handleGenerateNode(nodeId, target?.metadata?.generationMode || "image", target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "");
+                    }}
+                />
+            );
+        },
+        [configInputsById, confirmStopGeneration, connections, handleConfigNodeChange, handleGenerateNode, nodeById, openDirectorDesk, runningNodeId, theme],
+    );
+
     if (!projectLoaded) return <CanvasRefreshShell />;
 
     return (
@@ -2870,6 +3230,7 @@ function VozebCanvasPage() {
                     }}
                     onCanvasMouseDown={handleCanvasMouseDown}
                     onCanvasDeselect={deselectCanvas}
+                    onTouchGestureStart={cancelNodeInteractionForTouchGesture}
                     onContextMenu={preventCanvasContextMenu}
                     onDrop={handleDrop}
                 >
@@ -2928,75 +3289,23 @@ function VozebCanvasPage() {
                             batchMotion={batchMotionById.get(node.id)}
                             showImageInfo={showImageInfo}
                             resourceLabel={resourceReferenceByNodeId.get(node.id)}
-                            mentionReferences={mentionReferencesByNodeId.get(node.id) || []}
-                            renderPanel={(panelNode) =>
-                                panelNode.type === CanvasNodeType.Config ? (
-                                    <CanvasConfigComposer
-                                        value={panelNode.metadata?.composerContent ?? panelNode.metadata?.prompt ?? ""}
-                                        inputs={configInputsById.get(panelNode.id) || []}
-                                        onChange={(composerContent) => handleConfigNodeChange(panelNode.id, { composerContent })}
-                                        onClose={() => setDialogNodeId(null)}
-                                    />
-                                ) : (
-                                    <CanvasNodePromptPanel
-                                        node={panelNode}
-                                        isRunning={runningNodeId === panelNode.id}
-                                        mentionReferences={mentionReferencesByNodeId.get(panelNode.id) || []}
-                                        onPromptChange={handleNodePromptChange}
-                                        onConfigChange={handleConfigNodeChange}
-                                        onGenerate={handleGenerateNode}
-                                        onStop={confirmStopGeneration}
-                                        onImageSettingsOpenChange={(open) => {
-                                            setNodeImageSettingsOpen(open);
-                                            if (open) setToolbarNodeId(null);
-                                        }}
-                                    />
-                                )
-                            }
-                            renderNodeContent={(contentNode) => (
-                                <CanvasConfigNodePanel
-                                    node={contentNode}
-                                    isRunning={runningNodeId === contentNode.id}
-                                    inputSummary={getInputSummary(configInputsById.get(contentNode.id) || [])}
-                                    onConfigChange={handleConfigNodeChange}
-                                    onComposerToggle={() => setDialogNodeId((current) => (current === contentNode.id ? null : contentNode.id))}
-                                    onStop={confirmStopGeneration}
-                                    onGenerate={(nodeId) => {
-                                        const target = nodesRef.current.find((item) => item.id === nodeId);
-                                        void handleGenerateNode(nodeId, target?.metadata?.generationMode || "image", target?.metadata?.composerContent ?? target?.metadata?.prompt ?? "");
-                                    }}
-                                />
-                            )}
+                            mentionReferences={mentionReferencesByNodeId.get(node.id) || emptyMentionReferences}
+                            renderPanel={renderCanvasNodePanel}
+                            renderNodeContent={renderCanvasNodeContent}
                             onMouseDown={handleNodeMouseDown}
-                            onHoverStart={(nodeId) => {
-                                if (nodeDraggingRef.current) return;
-                                setHoveredNodeId(nodeId);
-                                keepNodeToolbar(nodeId);
-                            }}
-                            onHoverEnd={(nodeId) => {
-                                setHoveredNodeId((current) => (current === nodeId ? null : current));
-                                hideNodeToolbar();
-                            }}
+                            onHoverStart={handleNodeHoverStart}
+                            onHoverEnd={handleNodeHoverEnd}
                             onConnectStart={handleConnectStart}
                             onResize={handleNodeResize}
                             onContentChange={handleNodeContentChange}
                             onToggleBatch={toggleBatchExpanded}
                             onSetBatchPrimary={setBatchPrimary}
-                            onRetry={(node) => void handleRetryNode(node)}
+                            onRetry={handleNodeRetry}
                             onGenerateImage={generateImageFromTextNode}
-                            onViewImage={(node) => setPreviewNodeId(node.id)}
-                            onContextMenu={(event, id) => {
-                                event.preventDefault();
-                                event.stopPropagation();
-                                dragRef.current.hasMoved = true;
-                                dragRef.current.isDraggingNode = false;
-                                nodeDraggingRef.current = false;
-                                setIsNodeDragging(false);
-                                setDialogNodeId(null);
-                                setEditingNodeId(null);
-                                setToolbarNodeId(null);
-                                setContextMenu({ type: "node", x: event.clientX, y: event.clientY, nodeId: id });
-                            }}
+                            onEditImage={openImageEditor}
+                            onViewImage={handleNodeViewImage}
+                            onOpenDirector={openDirectorDesk}
+                            onContextMenu={handleNodeContextMenu}
                         />
                     ))}
 
@@ -3030,11 +3339,12 @@ function VozebCanvasPage() {
                     onUpload={(node) => handleUploadRequest(node.id)}
                     onDownload={downloadNodeImage}
                     onSaveAsset={(node) => void saveNodeAsset(node)}
-                    onMaskEdit={(node) => setMaskEditNodeId(node.id)}
-                    onCrop={(node) => setCropNodeId(node.id)}
+                    onEditImage={(node) => openImageEditor(node, "mask")}
+                    onMaskEdit={(node) => openImageEditor(node, "mask")}
+                    onCrop={(node) => openImageEditor(node, "crop")}
                     onSplit={(node) => setSplitNodeId(node.id)}
                     onUpscale={(node) => setUpscaleNodeId(node.id)}
-                    onSuperResolve={(node) => setUpscaleNodeId(node.id)}
+                    onSuperResolve={(node) => setSuperResolveNodeId(node.id)}
                     onAngle={(node) => setAngleNodeId(node.id)}
                     onViewImage={(node) => setPreviewNodeId(node.id)}
                     onReversePrompt={createImageReversePromptNodes}
@@ -3054,6 +3364,7 @@ function VozebCanvasPage() {
                     onAddAudio={() => createNode(CanvasNodeType.Audio)}
                     onAddText={() => createNode(CanvasNodeType.Text)}
                     onAddConfig={() => createNode(CanvasNodeType.Config)}
+                    onAddDirector={() => createNode(CanvasNodeType.Director)}
                     onUndo={undoCanvas}
                     onRedo={redoCanvas}
                     onUpload={() => handleUploadRequest()}
@@ -3096,16 +3407,25 @@ function VozebCanvasPage() {
 
                 <CanvasNodeInfoModal node={infoNode} open={Boolean(infoNode)} onClose={() => setInfoNodeId(null)} />
 
-                {cropNode?.metadata?.content ? <CanvasNodeCropDialog dataUrl={cropNode.metadata.content} open={Boolean(cropNode)} onClose={() => setCropNodeId(null)} onConfirm={(crop) => void cropImageNode(cropNode!, crop)} /> : null}
-
-                {maskEditNode?.metadata?.content ? (
-                    <CanvasNodeMaskEditDialog dataUrl={maskEditNode.metadata.content} open={Boolean(maskEditNode)} onClose={() => setMaskEditNodeId(null)} onConfirm={(payload) => void maskEditImageNode(maskEditNode!, payload)} />
+                {imageEditorNode?.metadata?.content ? (
+                    <CanvasNodeImageEditor
+                        dataUrl={imageEditorNode.metadata.content}
+                        open={Boolean(imageEditorNode)}
+                        initialMode={imageEditorMode}
+                        onClose={() => setImageEditorNodeId(null)}
+                        onSave={(payload) => saveEditedImageNode(imageEditorNode, payload)}
+                        onGenerate={(payload) => maskEditImageNode(imageEditorNode, payload)}
+                    />
                 ) : null}
 
                 {splitNode?.metadata?.content ? <CanvasNodeSplitDialog dataUrl={splitNode.metadata.content} open={Boolean(splitNode)} onClose={() => setSplitNodeId(null)} onConfirm={(params) => void splitImageNode(splitNode!, params)} /> : null}
 
                 {upscaleNode?.metadata?.content ? (
                     <CanvasNodeUpscaleDialog dataUrl={upscaleNode.metadata.content} open={Boolean(upscaleNode)} onClose={() => setUpscaleNodeId(null)} onConfirm={(params) => void upscaleImageNode(upscaleNode!, params)} />
+                ) : null}
+
+                {superResolveNode?.metadata?.content ? (
+                    <CanvasNodeSuperResolveDialog dataUrl={superResolveNode.metadata.content} open={Boolean(superResolveNode)} onClose={() => setSuperResolveNodeId(null)} onConfirm={(params) => void superResolveImageNode(superResolveNode, params)} />
                 ) : null}
 
                 {angleNode?.metadata?.content ? <CanvasNodeAngleDialog dataUrl={angleNode.metadata.content} open={Boolean(angleNode)} onClose={() => setAngleNodeId(null)} onConfirm={(params) => void generateAngleNode(angleNode!, params)} /> : null}
@@ -3141,6 +3461,17 @@ function VozebCanvasPage() {
 
                 {assetPickerOpen ? <AssetPickerModal open={assetPickerOpen} onInsert={handleAssetInsert} onClose={() => setAssetPickerOpen(false)} /> : null}
                 {codexCompactAgent && !assistantMounted ? <CanvasLocalAgentPanel headless snapshot={agentSnapshot} canUndoOps={Boolean(agentUndoSnapshot)} onApplyOps={applyAgentOps} onUndoOps={undoAgentOps} autoConnect={codexAutoConnect} /> : null}
+                {directorNode ? (
+                    <DirectorDeskHost
+                        node={directorNode}
+                        panorama={directorPanorama}
+                        theme={colorTheme}
+                        onClose={() => setDirectorNodeId(null)}
+                        onPanoramaRemoved={removeDirectorPanorama}
+                        onCaptures={(captures) => insertDirectorCaptures(directorNode.id, captures)}
+                        onProjectChange={(project) => updateDirectorProject(directorNode.id, project)}
+                    />
+                ) : null}
             </section>
             {assistantMounted ? (
                 <CanvasAssistantPanel
@@ -3404,7 +3735,21 @@ function audioExtension(mimeType?: string) {
 
 async function uploadCanvasImage(input: string | Blob): Promise<UploadedImage> {
     const image = await uploadImage(input);
-    return { ...image, url: await resolveStoredImageDataUrl(image.storageKey, image.url) };
+    const dataUrl = await resolveStoredImageDataUrl(image.storageKey, image.url);
+    const shouldPersist = input instanceof Blob || (typeof input === "string" && input.startsWith("data:image/"));
+    const serverUrl = shouldPersist ? await persistCanvasReferenceImage(dataUrl).catch(() => "") : "";
+    return { ...image, url: dataUrl, serverUrl: serverUrl || undefined };
+}
+
+async function persistCanvasReferenceImage(dataUrl: string) {
+    const response = await fetch("/api/reference-assets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "image", dataUrl, persistent: true }),
+    });
+    const payload = (await response.json().catch(() => ({}))) as { url?: unknown; error?: unknown };
+    if (!response.ok || typeof payload.url !== "string" || !payload.url) throw new Error(typeof payload.error === "string" ? payload.error : "参考图服务器备份失败");
+    return payload.url;
 }
 
 async function uploadGeneratedCanvasImage(url: string, remoteFallback = "", serverFallback = ""): Promise<UploadedImage> {
@@ -3454,7 +3799,7 @@ function isLocalGeneratedUrl(value: string) {
 }
 
 function isServerGeneratedUrl(value: string) {
-    return value.startsWith("/api/generation-log-assets/");
+    return value.startsWith("/api/generation-log-assets/") || value.startsWith("/api/reference-assets/") || /^https?:\/\/[^/]+\/api\/(?:generation-log-assets|reference-assets)\//i.test(value);
 }
 
 function videoMetadata(video: UploadedFile): CanvasNodeMetadata {
@@ -3572,7 +3917,7 @@ async function hydrateAssistantImages(sessions: CanvasAssistantSession[]) {
 }
 
 function getGenerationCount(count: string) {
-    return Math.max(1, Math.min(15, Math.floor(Math.abs(Number(count)) || 1)));
+    return Math.max(1, Math.min(80, Math.floor(Math.abs(Number(count)) || 1)));
 }
 
 async function runWithConcurrencyLimit<T>(items: T[], limit: number, worker: (item: T, index: number) => Promise<unknown>) {
@@ -3609,11 +3954,25 @@ function normalizeConnection(firstNodeId: string, secondNodeId: string, nodes: C
     const first = nodes.find((node) => node.id === firstNodeId);
     const second = nodes.find((node) => node.id === secondNodeId);
     if (!first || !second || first.id === second.id) return null;
+    if (first.type === CanvasNodeType.Director || second.type === CanvasNodeType.Director) {
+        const directional = firstHandleType === "target" ? { fromNodeId: second.id, toNodeId: first.id } : { fromNodeId: first.id, toNodeId: second.id };
+        const from = nodes.find((node) => node.id === directional.fromNodeId);
+        const to = nodes.find((node) => node.id === directional.toNodeId);
+        if (from?.type === CanvasNodeType.Image && to?.type === CanvasNodeType.Director) return directional;
+        if (from?.type === CanvasNodeType.Director && to?.type === CanvasNodeType.Image) return directional;
+        return null;
+    }
     if (first.type === CanvasNodeType.Config && second.type === CanvasNodeType.Config) return null;
     if (second.type === CanvasNodeType.Config) return { fromNodeId: first.id, toNodeId: second.id };
     if (first.type === CanvasNodeType.Config && firstHandleType === "target") return { fromNodeId: second.id, toNodeId: first.id };
     if (first.type === CanvasNodeType.Config) return { fromNodeId: first.id, toNodeId: second.id };
     return { fromNodeId: first.id, toNodeId: second.id };
+}
+
+function appendConnectionWithDirectorRules(connections: CanvasConnection[], connection: CanvasConnection, nodes: CanvasNodeData[]) {
+    const target = nodes.find((node) => node.id === connection.toNodeId);
+    if (target?.type !== CanvasNodeType.Director) return [...connections, connection];
+    return [...connections.filter((item) => item.toNodeId !== target.id), connection];
 }
 
 function getInputSummary(inputs: NodeGenerationInput[]) {
@@ -3627,7 +3986,7 @@ function getInputSummary(inputs: NodeGenerationInput[]) {
 
 function buildGenerationConfig(config: AiConfig, node: CanvasNodeData | undefined, mode: CanvasNodeGenerationMode): AiConfig {
     const defaultModel = mode === "image" ? config.imageModel : mode === "video" ? config.videoModel : mode === "audio" ? config.audioModel : config.textModel;
-    const metadataModel = node?.metadata?.model || "";
+    const metadataModel = config.forceSystemDefaults ? "" : node?.metadata?.model || "";
     const model = metadataModel && modelMatchesCanvasGenerationMode(metadataModel, mode) ? metadataModel : defaultModel || (mode === "audio" ? defaultConfig.audioModel : config.model || defaultConfig.model);
     return {
         ...config,

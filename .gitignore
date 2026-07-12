@@ -8,5 +8,10 @@ data/
 *.log
 *.tsbuildinfo
 .tmp-*
+*.bak-*
+.codex/
+.codex-backups/
+web/public/director-desk/
+director-desk/dist/
 .DS_Store
 .idea

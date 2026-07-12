@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 
 import { resolveServerDataPath } from "@/lib/server/data-dir";
@@ -220,6 +220,17 @@ export type PublicUser = {
 
 type StoredUser = Omit<PublicUser, "checkedInToday" | "lastCheckInDate"> & {
     passwordHash: string;
+    chat2apiKeys?: StoredChat2ApiUserKey[];
+};
+
+type StoredChat2ApiUserKey = {
+    channelId: string;
+    baseUrl: string;
+    keyId: string;
+    key: string;
+    accountGroupId: string;
+    createdAt: string;
+    updatedAt: string;
 };
 
 type StoredSession = {
@@ -378,6 +389,8 @@ const AUTH_DATA_FILE = resolveServerDataPath("auth.json");
 const USERNAME_PATTERN = /^[a-zA-Z0-9_.-]{3,32}$/;
 
 let mutationQueue = Promise.resolve();
+const globalChat2ApiProvisioning = globalThis as typeof globalThis & { __vozebChat2ApiProvisioning?: Map<string, Promise<string>> };
+const chat2ApiProvisioning = (globalChat2ApiProvisioning.__vozebChat2ApiProvisioning ??= new Map<string, Promise<string>>());
 
 export function sessionMaxAgeSeconds() {
     return SESSION_MAX_AGE_SECONDS;
@@ -385,6 +398,68 @@ export function sessionMaxAgeSeconds() {
 
 export async function getAuthSettings() {
     return (await readAuthDb()).settings;
+}
+
+export async function resolveSystemChannelApiKeyForUser(userId: string, channel: SystemModelChannel) {
+    const fallbackKey = channel.apiKey.trim();
+    if (!fallbackKey || !shouldProvisionChat2ApiUserKey(channel)) return fallbackKey;
+
+    const baseUrl = normalizeChat2ApiBaseUrl(channel.baseUrl);
+    const provisioningId = `${userId}:${channel.id}:${baseUrl}`;
+    const inFlight = chat2ApiProvisioning.get(provisioningId);
+    if (inFlight) return inFlight;
+
+    const provision = provisionChat2ApiUserKey(userId, channel, baseUrl, fallbackKey);
+    chat2ApiProvisioning.set(provisioningId, provision);
+    try {
+        return await provision;
+    } catch (error) {
+        console.warn("Chat2API user key provisioning failed", error instanceof Error ? error.message : error);
+        return fallbackKey;
+    } finally {
+        if (chat2ApiProvisioning.get(provisioningId) === provision) chat2ApiProvisioning.delete(provisioningId);
+    }
+}
+
+async function provisionChat2ApiUserKey(userId: string, channel: SystemModelChannel, baseUrl: string, fallbackKey: string) {
+    const snapshot = await readAuthDb();
+    const snapshotUser = snapshot.users.find((item) => item.id === userId);
+    if (!snapshotUser) return fallbackKey;
+
+    const existing = (snapshotUser.chat2apiKeys || []).find((item) => item.channelId === channel.id && item.baseUrl === baseUrl && item.key);
+    if (existing?.key) return existing.key;
+
+    const created = await createChat2ApiUserKey({
+        baseUrl,
+        adminKey: process.env.VOZEB_CHAT2API_ADMIN_KEY?.trim() || fallbackKey,
+        name: `vozeb-${snapshotUser.username}-${snapshotUser.id.slice(0, 8)}`,
+        accountGroupId: selectChat2ApiAccountGroupId(snapshotUser.id),
+    });
+    if (!created?.key) return fallbackKey;
+
+    return mutateAuthDb((db) => {
+        const user = db.users.find((item) => item.id === userId);
+        if (!user) return fallbackKey;
+
+        const current = (user.chat2apiKeys || []).find((item) => item.channelId === channel.id && item.baseUrl === baseUrl && item.key);
+        if (current?.key) return current.key;
+
+        const now = new Date().toISOString();
+        user.chat2apiKeys = [
+            ...(user.chat2apiKeys || []).filter((item) => !(item.channelId === channel.id && item.baseUrl === baseUrl)),
+            {
+                channelId: channel.id,
+                baseUrl,
+                keyId: created.keyId,
+                key: created.key,
+                accountGroupId: created.accountGroupId,
+                createdAt: now,
+                updatedAt: now,
+            },
+        ];
+        user.updatedAt = now;
+        return created.key;
+    });
 }
 
 export async function setAuthSettings(patch: Partial<AuthSettings>) {
@@ -1069,7 +1144,69 @@ async function mutateAuthDb<T>(mutator: (db: AuthDatabase) => T | Promise<T>) {
 
 async function writeAuthDb(db: AuthDatabase) {
     await mkdir(dirname(AUTH_DATA_FILE), { recursive: true });
-    await writeFile(AUTH_DATA_FILE, `${JSON.stringify(db, null, 2)}\n`, "utf8");
+    const temporary = `${AUTH_DATA_FILE}.${process.pid}.${randomUUID()}.tmp`;
+    await writeFile(temporary, `${JSON.stringify(db, null, 2)}\n`, { encoding: "utf8", mode: 0o600 });
+    await rename(temporary, AUTH_DATA_FILE);
+}
+
+function shouldProvisionChat2ApiUserKey(channel: SystemModelChannel) {
+    const enabled = process.env.VOZEB_CHAT2API_USER_KEY_ENABLED?.trim().toLowerCase();
+    if (["0", "false", "no", "off"].includes(enabled || "")) return false;
+    if (channel.apiFormat !== "openai") return false;
+
+    const configuredBaseUrl = process.env.VOZEB_CHAT2API_USER_KEY_BASE_URL?.trim();
+    if (configuredBaseUrl) return normalizeChat2ApiBaseUrl(channel.baseUrl) === normalizeChat2ApiBaseUrl(configuredBaseUrl);
+
+    const baseUrl = channel.baseUrl.trim().toLowerCase();
+    return baseUrl.includes("3258") || baseUrl.includes("chat2api") || baseUrl.includes("chatgpt2api");
+}
+
+function normalizeChat2ApiBaseUrl(baseUrl: string) {
+    return baseUrl.trim().replace(/\/+$/, "");
+}
+
+function selectChat2ApiAccountGroupId(userId: string) {
+    const groups = (process.env.VOZEB_CHAT2API_ACCOUNT_GROUP_IDS || "")
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean);
+    if (!groups.length) return "";
+    const hash = createHash("sha256").update(userId).digest("hex");
+    const index = Number.parseInt(hash.slice(0, 8), 16) % groups.length;
+    return groups[index] || "";
+}
+
+async function createChat2ApiUserKey(input: { baseUrl: string; adminKey: string; name: string; accountGroupId: string }) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    try {
+        const response = await fetch(`${input.baseUrl}/api/auth/users`, {
+            method: "POST",
+            headers: {
+                authorization: `Bearer ${input.adminKey}`,
+                "content-type": "application/json",
+            },
+            body: JSON.stringify({
+                name: input.name,
+                account_group_id: input.accountGroupId,
+            }),
+            cache: "no-store",
+            signal: controller.signal,
+        });
+        if (!response.ok) return null;
+        const payload = (await response.json()) as { key?: unknown; item?: { id?: unknown; account_group_id?: unknown } };
+        const key = typeof payload.key === "string" ? payload.key.trim() : "";
+        if (!key) return null;
+        return {
+            key,
+            keyId: typeof payload.item?.id === "string" ? payload.item.id : "",
+            accountGroupId: typeof payload.item?.account_group_id === "string" ? payload.item.account_group_id : input.accountGroupId,
+        };
+    } catch {
+        return null;
+    } finally {
+        clearTimeout(timer);
+    }
 }
 
 function normalizeDb(db: Partial<AuthDatabase>): AuthDatabase {
@@ -1135,6 +1272,7 @@ function normalizeDisplayName(value: string) {
 
 function normalizeSettings(settings: AuthSettings): AuthSettings {
     const legacySettings = settings as AuthSettings & { defaultQuota?: Partial<LegacyUserQuota>; checkInReward?: Partial<LegacyUserQuota> };
+    const systemChannels = Array.isArray(settings.systemChannels) ? settings.systemChannels.map(normalizeSystemChannel).filter((channel) => channel.name || channel.baseUrl || channel.models.length) : [];
     return {
         site: normalizeSiteSettings(settings.site),
         registrationEnabled: Boolean(settings.registrationEnabled),
@@ -1149,19 +1287,54 @@ function normalizeSettings(settings: AuthSettings): AuthSettings {
         generationDefaults: normalizeGenerationDefaults(settings.generationDefaults),
         generationAssetStorage: normalizeGenerationAssetStorage(settings.generationAssetStorage),
         webdav: normalizeWebdavSettings(settings.webdav),
-        systemChannels: Array.isArray(settings.systemChannels) ? settings.systemChannels.map(normalizeSystemChannel).filter((channel) => channel.name || channel.baseUrl || channel.models.length) : [],
-        defaultModels: {
-            imageModel: settings.defaultModels?.imageModel || "",
-            videoModel: settings.defaultModels?.videoModel || "",
-            textModel: settings.defaultModels?.textModel || "",
-            audioModel: settings.defaultModels?.audioModel || "",
-        },
+        systemChannels,
+        defaultModels: normalizeDefaultModels(settings.defaultModels, systemChannels),
     };
+}
+
+function normalizeDefaultModels(defaultModels: Partial<SystemDefaultModels> | undefined, channels: SystemModelChannel[]): SystemDefaultModels {
+    return {
+        imageModel: normalizeDefaultModel(defaultModels?.imageModel, channels, "imageModel"),
+        videoModel: normalizeDefaultModel(defaultModels?.videoModel, channels, "videoModel"),
+        textModel: normalizeDefaultModel(defaultModels?.textModel, channels, "textModel"),
+        audioModel: normalizeDefaultModel(defaultModels?.audioModel, channels, "audioModel"),
+    };
+}
+
+function normalizeDefaultModel(value: string | undefined, channels: SystemModelChannel[], key: keyof SystemDefaultModels) {
+    const normalized = (value || "").trim();
+    if (normalized) {
+        const decoded = decodeDefaultModelValue(normalized);
+        if (decoded) {
+            const channel = channels.find((item) => item.id === decoded.channelId && item.enabled !== false);
+            if (channel?.models.includes(decoded.model)) return `${channel.id}::${decoded.model}`;
+        }
+        const channel = channels.find((item) => item.enabled !== false && item.models.includes(normalized));
+        if (channel) return `${channel.id}::${normalized}`;
+    }
+
+    const fallbackChannel = channels.find((channel) => channel.enabled !== false && channel.models.some((model) => modelMatchesDefaultKind(model, key)));
+    const fallbackModel = fallbackChannel?.models.find((model) => modelMatchesDefaultKind(model, key));
+    return fallbackChannel && fallbackModel ? `${fallbackChannel.id}::${fallbackModel}` : "";
+}
+
+function decodeDefaultModelValue(value: string) {
+    const index = value.indexOf("::");
+    if (index < 0) return null;
+    return { channelId: value.slice(0, index), model: value.slice(index + 2).trim() };
+}
+
+function modelMatchesDefaultKind(model: string, key: keyof SystemDefaultModels): boolean {
+    const lower = model.toLowerCase();
+    if (key === "imageModel") return /image|img|gpt-image|dall|flux|sdxl|stable-diffusion|midjourney/.test(lower);
+    if (key === "videoModel") return /video|vid|i2v|t2v|seedance|kling|sora|veo|grok-imagine/.test(lower);
+    if (key === "audioModel") return /audio|speech|tts|whisper|music|voice/.test(lower);
+    return !modelMatchesDefaultKind(model, "imageModel") && !modelMatchesDefaultKind(model, "videoModel") && !modelMatchesDefaultKind(model, "audioModel");
 }
 
 function normalizeGenerationDefaults(settings: Partial<GenerationDefaultSettings> | undefined): GenerationDefaultSettings {
     return {
-        canvasImageCount: Math.max(1, Math.min(10, Math.floor(Number(settings?.canvasImageCount) || DEFAULT_SETTINGS.generationDefaults.canvasImageCount))),
+        canvasImageCount: Math.max(1, Math.min(80, Math.floor(Number(settings?.canvasImageCount) || DEFAULT_SETTINGS.generationDefaults.canvasImageCount))),
     };
 }
 
@@ -1191,7 +1364,7 @@ function normalizeWebdavDirectory(value: unknown) {
 
 function normalizeGenerationConcurrency(settings: Partial<GenerationConcurrencySettings> | undefined): GenerationConcurrencySettings {
     return {
-        image: Math.max(1, Math.min(10, Math.floor(Number(settings?.image) || DEFAULT_SETTINGS.generationConcurrency.image))),
+        image: Math.max(1, Math.min(80, Math.floor(Number(settings?.image) || DEFAULT_SETTINGS.generationConcurrency.image))),
         video: Math.max(1, Math.min(5, Math.floor(Number(settings?.video) || DEFAULT_SETTINGS.generationConcurrency.video))),
     };
 }

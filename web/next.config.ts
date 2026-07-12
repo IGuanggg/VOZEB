@@ -31,5 +31,18 @@ export default function nextConfig(phase: string): NextConfig {
             cpus: buildCpus,
             workerThreads: false,
         },
+        async headers() {
+            return [
+                {
+                    source: "/director-desk/:path*",
+                    headers: [
+                        { key: "Content-Security-Policy", value: "frame-ancestors 'self'" },
+                        { key: "Access-Control-Allow-Origin", value: "*" },
+                        { key: "X-Content-Type-Options", value: "nosniff" },
+                        { key: "Referrer-Policy", value: "same-origin" },
+                    ],
+                },
+            ];
+        },
     };
 }

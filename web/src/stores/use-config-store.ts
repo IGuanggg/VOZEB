@@ -39,6 +39,7 @@ export type ModelChannel = {
 
 export type AiConfig = {
     apiSource: "system" | "custom";
+    forceSystemDefaults: boolean;
     channelMode: "remote" | "local";
     baseUrl: string;
     apiKey: string;
@@ -94,6 +95,7 @@ export type WebdavSyncConfig = {
 };
 
 export type PublicSystemSettings = {
+    allowUserApiConfig?: boolean;
     modelPointCosts?: Record<string, number>;
     generationPointMultipliers?: GenerationPointMultipliers;
     generationConcurrency?: GenerationConcurrencySettings;
@@ -121,6 +123,7 @@ const CONFIG_STORE_VERSION = 3;
 
 export const defaultConfig: AiConfig = {
     apiSource: "system",
+    forceSystemDefaults: true,
     channelMode: "local",
     baseUrl: DEFAULT_SYSTEM_BASE_URL,
     apiKey: "",
@@ -239,6 +242,7 @@ function isAiConfigReady(config: AiConfig, model: string) {
 }
 
 export function applyPublicSystemSettings(config: AiConfig, settings?: PublicSystemSettings | null): AiConfig {
+    const forceSystemDefaults = settings?.allowUserApiConfig !== true;
     const channels = (settings?.systemChannels || [])
         .filter((channel) => channel.enabled !== false && channel.models?.length)
         .map((channel) => ({
@@ -256,13 +260,14 @@ export function applyPublicSystemSettings(config: AiConfig, settings?: PublicSys
     const textModels = filterModelsByCapability(models, "text");
     const audioModels = filterModelsByCapability(models, "audio");
     const defaultModels = settings?.defaultModels || {};
-    const imageModel = chooseSystemModel(config.imageModel, defaultModels.imageModel, channels, imageModels);
-    const videoModel = chooseSystemModel(config.videoModel, defaultModels.videoModel, channels, videoModels);
-    const textModel = chooseSystemModel(config.textModel, defaultModels.textModel, channels, textModels);
-    const audioModel = chooseSystemModel(config.audioModel, defaultModels.audioModel, channels, audioModels);
+    const imageModel = chooseSystemModel(config.imageModel, defaultModels.imageModel, channels, imageModels, forceSystemDefaults);
+    const videoModel = chooseSystemModel(config.videoModel, defaultModels.videoModel, channels, videoModels, forceSystemDefaults);
+    const textModel = chooseSystemModel(config.textModel, defaultModels.textModel, channels, textModels, forceSystemDefaults);
+    const audioModel = chooseSystemModel(config.audioModel, defaultModels.audioModel, channels, audioModels, forceSystemDefaults);
     return {
         ...config,
         apiSource: "system",
+        forceSystemDefaults,
         channelMode: "local",
         channels,
         baseUrl: channels[0]?.baseUrl || "",
@@ -277,7 +282,7 @@ export function applyPublicSystemSettings(config: AiConfig, settings?: PublicSys
         videoModel,
         textModel,
         audioModel,
-        model: imageModel || textModel || videoModel || audioModel || "",
+        model: textModel || imageModel || videoModel || audioModel || "",
         systemPrompt: "",
         audioInstructions: "",
         modelPointCosts: settings?.modelPointCosts || {},
@@ -337,12 +342,13 @@ export const useConfigStore = create<ConfigStore>()(
                 const videoModel = normalizeModelOptionValue(config.videoModel || config.model, channels);
                 const textModel = normalizeModelOptionValue(config.textModel || config.model, channels);
                 const audioModel = normalizeModelOptionValue(config.audioModel || defaultConfig.audioModel, channels);
-                const model = normalizeModelOptionValue(config.model, channels) || imageModel || textModel || videoModel || audioModel;
+                const model = normalizeModelOptionValue(config.model, channels) || textModel || imageModel || videoModel || audioModel;
                 return {
                     ...current,
                     config: {
                         ...config,
                         apiSource: "system",
+                        forceSystemDefaults: config.forceSystemDefaults !== false,
                         channelMode: "local",
                         baseUrl: channels[0]?.baseUrl || "",
                         apiKey: "system",
@@ -486,12 +492,13 @@ export function modelOptionsFromChannels(channels: ModelChannel[]) {
     return uniqueModelOptions(channels.flatMap((channel) => channel.models.map((model) => encodeChannelModel(channel.id, model))));
 }
 
-function chooseSystemModel(currentValue: string, adminDefault: string | undefined, channels: ModelChannel[], options: string[]) {
+function chooseSystemModel(currentValue: string, adminDefault: string | undefined, channels: ModelChannel[], options: string[], preferAdminDefault = false) {
+    const defaultModel = encodeSystemModelByName(adminDefault || "", channels);
+    if (preferAdminDefault && defaultModel && options.includes(defaultModel)) return defaultModel;
     const current = normalizeModelOptionValue(currentValue, channels);
     if (current && options.includes(current)) return current;
     const matchedByName = encodeSystemModelByName(modelOptionName(currentValue), channels);
     if (matchedByName && options.includes(matchedByName)) return matchedByName;
-    const defaultModel = encodeSystemModelByName(adminDefault || "", channels);
     if (defaultModel && options.includes(defaultModel)) return defaultModel;
     return options[0] || "";
 }
@@ -499,6 +506,8 @@ function chooseSystemModel(currentValue: string, adminDefault: string | undefine
 function encodeSystemModelByName(model: string, channels: ModelChannel[]) {
     const name = model.trim();
     if (!name) return "";
+    const encoded = normalizeModelOptionValue(name, channels);
+    if (encoded) return encoded;
     const channel = channels.find((item) => item.models.includes(name));
     return channel ? encodeChannelModel(channel.id, name) : "";
 }

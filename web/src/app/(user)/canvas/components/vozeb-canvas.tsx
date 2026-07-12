@@ -13,12 +13,13 @@ type VozebCanvasProps = {
     onViewportChange: (viewport: ViewportTransform) => void;
     onCanvasMouseDown?: (event: React.PointerEvent<HTMLDivElement>) => void;
     onCanvasDeselect?: () => void;
+    onTouchGestureStart?: () => void;
     onContextMenu?: (event: React.MouseEvent) => void;
     onDrop?: (event: React.DragEvent<HTMLDivElement>) => void;
     children: React.ReactNode;
 };
 
-export function VozebCanvas({ containerRef, viewport, backgroundMode = "lines", onViewportChange, onCanvasMouseDown, onCanvasDeselect, onContextMenu, onDrop, children }: VozebCanvasProps) {
+export function VozebCanvas({ containerRef, viewport, backgroundMode = "lines", onViewportChange, onCanvasMouseDown, onCanvasDeselect, onTouchGestureStart, onContextMenu, onDrop, children }: VozebCanvasProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const viewportRef = useRef(viewport);
     const panState = useRef({
@@ -38,6 +39,7 @@ export function VozebCanvas({ containerRef, viewport, backgroundMode = "lines", 
         worldY: number;
     }>({ active: false, startDistance: 0, startScale: viewport.k, worldX: 0, worldY: 0 });
     const scaleRef = useRef(viewport.k);
+    const touchGestureActiveRef = useRef(false);
     const frameRef = useRef<number | null>(null);
     const nextViewportRef = useRef<ViewportTransform | null>(null);
     const [isSpacePressed, setIsSpacePressed] = useState(false);
@@ -145,21 +147,28 @@ export function VozebCanvas({ containerRef, viewport, backgroundMode = "lines", 
         return true;
     };
 
+    const handlePointerDownCapture = (event: React.PointerEvent<HTMLDivElement>) => {
+        if (event.pointerType !== "touch") return;
+        const target = event.target instanceof Element ? event.target : null;
+        if (target?.closest("[data-canvas-no-zoom],.ant-modal,.ant-popover,.ant-dropdown,.ant-select-dropdown,.ant-picker-dropdown")) return;
+
+        touchPointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
+        if (touchPointersRef.current.size < 2) return;
+
+        event.preventDefault();
+        event.stopPropagation();
+        touchGestureActiveRef.current = true;
+        onTouchGestureStart?.();
+        startPinchZoom();
+    };
+
     const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
         const target = event.target instanceof Element ? event.target : null;
         if (target?.closest("[data-canvas-no-zoom]")) return;
         if (target?.closest("[data-connection-create-menu]")) return;
         const isBackgroundClick = !target?.closest("[data-node-id],[data-connection-id]");
 
-        if (event.pointerType === "touch") {
-            event.currentTarget.setPointerCapture(event.pointerId);
-            touchPointersRef.current.set(event.pointerId, { clientX: event.clientX, clientY: event.clientY });
-            if (touchPointersRef.current.size >= 2) {
-                event.preventDefault();
-                startPinchZoom();
-                return;
-            }
-        }
+        if (event.pointerType === "touch" && touchPointersRef.current.size >= 2) return;
 
         if (event.button === 0 && (event.ctrlKey || event.metaKey) && isBackgroundClick) {
             event.preventDefault();
@@ -212,10 +221,28 @@ export function VozebCanvas({ containerRef, viewport, backgroundMode = "lines", 
         };
 
         const handlePointerUp = (event: PointerEvent) => {
+            let resumedSingleTouchPan = false;
             if (event.pointerType === "touch") {
                 touchPointersRef.current.delete(event.pointerId);
-                if (touchPointersRef.current.size < 2) pinchStateRef.current.active = false;
+                if (touchPointersRef.current.size < 2) {
+                    pinchStateRef.current.active = false;
+                    const remaining = touchPointersRef.current.values().next().value as { clientX: number; clientY: number } | undefined;
+                    if (remaining && touchGestureActiveRef.current) {
+                        const current = viewportRef.current;
+                        panState.current = {
+                            isPanning: true,
+                            startX: remaining.clientX,
+                            startY: remaining.clientY,
+                            initialX: current.x,
+                            initialY: current.y,
+                            hasMoved: true,
+                        };
+                        resumedSingleTouchPan = true;
+                    }
+                }
+                if (touchPointersRef.current.size === 0) touchGestureActiveRef.current = false;
             }
+            if (resumedSingleTouchPan) return;
             if (!panState.current.isPanning) return;
 
             if (!panState.current.hasMoved) {
@@ -225,13 +252,34 @@ export function VozebCanvas({ containerRef, viewport, backgroundMode = "lines", 
             document.body.style.cursor = "default";
         };
 
+        const resetPointerState = () => {
+            if (frameRef.current) {
+                cancelAnimationFrame(frameRef.current);
+                frameRef.current = null;
+            }
+            nextViewportRef.current = null;
+            touchPointersRef.current.clear();
+            pinchStateRef.current.active = false;
+            touchGestureActiveRef.current = false;
+            panState.current.isPanning = false;
+            document.body.style.cursor = "default";
+        };
+
+        const handleVisibilityChange = () => {
+            if (document.visibilityState !== "visible") resetPointerState();
+        };
+
         window.addEventListener("pointermove", handlePointerMove);
         window.addEventListener("pointerup", handlePointerUp);
         window.addEventListener("pointercancel", handlePointerUp);
+        window.addEventListener("blur", resetPointerState);
+        document.addEventListener("visibilitychange", handleVisibilityChange);
         return () => {
             window.removeEventListener("pointermove", handlePointerMove);
             window.removeEventListener("pointerup", handlePointerUp);
             window.removeEventListener("pointercancel", handlePointerUp);
+            window.removeEventListener("blur", resetPointerState);
+            document.removeEventListener("visibilitychange", handleVisibilityChange);
         };
     }, [onCanvasDeselect, onViewportChange]);
 
@@ -249,6 +297,7 @@ export function VozebCanvas({ containerRef, viewport, backgroundMode = "lines", 
             ref={containerRef}
             className="canvas-surface relative h-full w-full cursor-grab select-none overflow-hidden"
             style={{ background: theme.canvas.background, touchAction: "none", overscrollBehavior: "none" }}
+            onPointerDownCapture={handlePointerDownCapture}
             onPointerDown={handlePointerDown}
             onWheel={handleWheel}
             onContextMenu={onContextMenu}

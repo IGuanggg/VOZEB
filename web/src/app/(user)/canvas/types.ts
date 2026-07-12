@@ -15,6 +15,7 @@ export enum CanvasNodeType {
     Config = "config",
     Video = "video",
     Audio = "audio",
+    Director = "director",
 }
 
 export type CanvasNodeStatus = "idle" | "success" | "loading" | "error";
@@ -27,6 +28,7 @@ export type CanvasNodeMetadata = {
     prompt?: string;
     status?: CanvasNodeStatus;
     errorDetails?: string;
+    retryDisabled?: boolean;
     fontSize?: number;
     generationMode?: CanvasGenerationMode;
     generationType?: CanvasImageGenerationType;
@@ -73,6 +75,8 @@ export type CanvasNodeMetadata = {
         id: string;
         model: string;
     };
+    directorCaptureCount?: number;
+    directorProject?: unknown;
 };
 
 export type CanvasNodeData = {

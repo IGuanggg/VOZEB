@@ -10,6 +10,11 @@ web/.next
 web/.data
 web/node_modules
 web/out
+director-desk/dist
+director-desk/node_modules
+director-desk/*.tsbuildinfo
+director-desk/vite.config.js
+director-desk/vite.config.d.ts
 *.log
 .env*
 !.env.example

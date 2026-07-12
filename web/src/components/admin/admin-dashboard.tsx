@@ -2063,6 +2063,7 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
                                             fetching={fetchingModelId === channel.id}
                                             testingKey={testingChannelKey}
                                             healthResults={channelHealthResults}
+                                            defaultModels={settings.defaultModels}
                                             onChange={(patch) => updateChannel(channel.id, patch)}
                                             onDelete={() => deleteChannel(channel.id)}
                                             onFetchModels={() => void fetchModelsForChannel(channel)}
@@ -2079,10 +2080,11 @@ export function AdminDashboard({ initialUsers, initialSettings, initialPromptCou
                                     <div className="mt-4 space-y-3">
                                         {defaultModelKeys.map((item) => (
                                             <LabeledControl key={item.key} label={item.label}>
-                                                <Input
+                                                <DefaultModelSelect
+                                                    settings={settings}
+                                                    modelKey={item.key}
                                                     value={settings.defaultModels[item.key]}
-                                                    placeholder="模型名"
-                                                    onChange={(event) => setSettings((current) => ({ ...current, defaultModels: { ...current.defaultModels, [item.key]: event.target.value } }))}
+                                                    onChange={(value) => setSettings((current) => ({ ...current, defaultModels: { ...current.defaultModels, [item.key]: value } }))}
                                                 />
                                             </LabeledControl>
                                         ))}
@@ -3253,7 +3255,7 @@ function GenerationConcurrencyPanel({ settings, onChange }: { settings: AuthSett
             <SectionTitle icon={<Sparkles className="size-4" />} title="每用户并发上限" />
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
                 <LabeledControl label="生图同时生成">
-                    <InputNumber className="w-full" min={1} max={10} precision={0} value={settings.generationConcurrency.image} onChange={(value) => onChange("image", value)} />
+                    <InputNumber className="w-full" min={1} max={80} precision={0} value={settings.generationConcurrency.image} onChange={(value) => onChange("image", value)} />
                 </LabeledControl>
                 <LabeledControl label="视频同时生成">
                     <InputNumber className="w-full" min={1} max={5} precision={0} value={settings.generationConcurrency.video} onChange={(value) => onChange("video", value)} />
@@ -3270,7 +3272,7 @@ function GenerationDefaultsPanel({ settings, onChange }: { settings: AuthSetting
             <SectionTitle icon={<SlidersHorizontal className="size-4" />} title="生成默认值" />
             <div className="mt-4 max-w-xs">
                 <LabeledControl label="画布默认生图张数">
-                    <InputNumber className="w-full" min={1} max={10} precision={0} value={settings.generationDefaults.canvasImageCount} onChange={(value) => onChange("canvasImageCount", value)} />
+                    <InputNumber className="w-full" min={1} max={80} precision={0} value={settings.generationDefaults.canvasImageCount} onChange={(value) => onChange("canvasImageCount", value)} />
                 </LabeledControl>
             </div>
             <div className="mt-2 text-xs leading-5 text-stone-500 dark:text-stone-400">新建画布生图节点和配置节点默认使用，单个节点仍可单独覆盖。</div>
@@ -3612,6 +3614,7 @@ function SystemChannelEditor({
     fetching,
     testingKey,
     healthResults,
+    defaultModels,
     onChange,
     onDelete,
     onFetchModels,
@@ -3622,6 +3625,7 @@ function SystemChannelEditor({
     fetching: boolean;
     testingKey: string;
     healthResults: Record<string, ChannelHealthResult>;
+    defaultModels: AuthSettings["defaultModels"];
     onChange: (patch: Partial<SystemModelChannel>) => void;
     onDelete: () => void;
     onFetchModels: () => void;
@@ -3633,7 +3637,16 @@ function SystemChannelEditor({
     const healthKinds: ChannelHealthKind[] = ["text", "image", "video"];
     const visibleHealthResults = healthKinds.map((kind) => healthResults[`${channel.id}:${kind}`]).filter((item): item is ChannelHealthResult => Boolean(item));
     const advanced = channel.advancedConfig || createDefaultChannelAdvancedConfig();
+    const probeModels = healthKinds.map((kind) => ({ kind, model: selectChannelHealthModel(channel, defaultModels, kind) }));
     const updateAdvanced = (patch: Partial<SystemChannelAdvancedConfig>) => onChange({ advancedConfig: { ...advanced, ...patch } });
+    const copyModel = async (model: string) => {
+        try {
+            await navigator.clipboard.writeText(model);
+            message.success("模型名已复制");
+        } catch {
+            message.error("复制失败，请手动选择模型名");
+        }
+    };
     const applyExampleConfig = () => {
         const parsed = parseChannelExampleConfig(exampleText, channel, advanced);
         if (!parsed) {
@@ -3680,6 +3693,35 @@ function SystemChannelEditor({
                 <LabeledControl label="API Key">
                     <Input.Password value={channel.apiKey} placeholder="sk-..." onChange={(event) => onChange({ apiKey: event.target.value })} />
                 </LabeledControl>
+            </div>
+            <div className="mt-3 grid gap-2 rounded-lg border border-stone-200 bg-stone-50/70 p-3 dark:border-stone-800 dark:bg-stone-900/40">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm font-semibold text-stone-800 dark:text-stone-100">已拉取模型</div>
+                    <div className="flex flex-wrap gap-1.5">
+                        {probeModels.map((item) => (
+                            <Tag key={item.kind} className="m-0 max-w-full truncate">
+                                {healthKindLabel(item.kind)}检测：{item.model || "未选择"}
+                            </Tag>
+                        ))}
+                    </div>
+                </div>
+                {channel.models.length ? (
+                    <div className="flex max-h-36 flex-wrap gap-1.5 overflow-auto pr-1">
+                        {channel.models.map((model) => (
+                            <button
+                                key={model}
+                                type="button"
+                                className="max-w-full truncate rounded-md border border-stone-200 bg-white px-2 py-1 text-left text-xs text-stone-700 transition hover:border-stone-400 hover:text-stone-950 dark:border-stone-800 dark:bg-stone-950 dark:text-stone-300 dark:hover:border-stone-600 dark:hover:text-stone-100"
+                                title={`复制 ${model}`}
+                                onClick={() => void copyModel(model)}
+                            >
+                                {model}
+                            </button>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="rounded-md border border-dashed border-stone-200 bg-white px-3 py-4 text-center text-xs text-stone-500 dark:border-stone-800 dark:bg-stone-950/70 dark:text-stone-400">还没有模型。填写 Base URL 和 API Key 后点击“拉取模型”。</div>
+                )}
             </div>
             <ChannelCapabilitySummary channel={channel} results={visibleHealthResults} />
             {visibleHealthResults.length ? (
@@ -4021,6 +4063,41 @@ function SiteShowcasePreview({ site, onAdd }: { site: AuthSettings["site"]; onAd
     );
 }
 
+function DefaultModelSelect({
+    settings,
+    modelKey,
+    value,
+    onChange,
+}: {
+    settings: AuthSettings;
+    modelKey: keyof AuthSettings["defaultModels"];
+    value: string;
+    onChange: (value: string) => void;
+}) {
+    const options = defaultModelSelectOptions(settings, modelKey);
+    const resolvedValue = resolveDefaultModelSelectValue(value, options);
+    const selectedValues = value ? [resolvedValue || value] : [];
+    const rawModelName = modelNameFromOption(value || "");
+    const missingFromList = Boolean(value && !resolvedValue);
+    return (
+        <div className="space-y-1.5">
+            <Select
+                className="w-full"
+                mode="tags"
+                allowClear
+                showSearch
+                maxTagCount="responsive"
+                optionFilterProp="label"
+                placeholder="选择或输入模型名"
+                value={selectedValues}
+                options={options}
+                onChange={(values) => onChange(values[values.length - 1] || "")}
+            />
+            {missingFromList ? <div className="text-xs leading-5 text-amber-600 dark:text-amber-300">当前模型没有出现在已拉取列表中，将按自定义模型名保存：{rawModelName}</div> : null}
+        </div>
+    );
+}
+
 function createSystemChannel(): SystemModelChannel {
     return { id: nanoid(), name: "自定义接口", baseUrl: "", apiKey: "", apiFormat: "openai", models: [], enabled: true, advancedConfig: createDefaultChannelAdvancedConfig() };
 }
@@ -4105,6 +4182,58 @@ function modelNameFromOption(value: string) {
     if (!normalized) return "";
     const parts = normalized.split("::");
     return parts[parts.length - 1] || normalized;
+}
+
+function encodeAdminChannelModel(channelId: string, model: string) {
+    return `${channelId}::${model.trim()}`;
+}
+
+function defaultModelSelectOptions(settings: AuthSettings, modelKey: keyof AuthSettings["defaultModels"]) {
+    const groups = settings.systemChannels
+        .filter((channel) => channel.enabled !== false && channel.models.length)
+        .map((channel) => {
+            const matched = channel.models.filter((model) => modelMatchesDefaultKind(model, modelKey));
+            const models = matched.length ? matched : modelKey === "textModel" ? channel.models.filter((model) => !modelMatchesDefaultKind(model, "imageModel") && !modelMatchesDefaultKind(model, "videoModel") && !modelMatchesDefaultKind(model, "audioModel")) : [];
+            return {
+                label: `${channel.name || "未命名渠道"} (${models.length})`,
+                options: models.map((model) => ({
+                    label: `${channel.name || "未命名渠道"} / ${model}`,
+                    value: encodeAdminChannelModel(channel.id, model),
+                })),
+            };
+        })
+        .filter((group) => group.options.length);
+    if (groups.length) return groups;
+    return settings.systemChannels
+        .filter((channel) => channel.enabled !== false && channel.models.length)
+        .map((channel) => ({
+            label: `${channel.name || "未命名渠道"} (${channel.models.length})`,
+            options: channel.models.map((model) => ({
+                label: `${channel.name || "未命名渠道"} / ${model}`,
+                value: encodeAdminChannelModel(channel.id, model),
+            })),
+        }));
+}
+
+function flattenDefaultModelOptions(options: ReturnType<typeof defaultModelSelectOptions>) {
+    return options.flatMap((group) => group.options);
+}
+
+function resolveDefaultModelSelectValue(value: string, options: ReturnType<typeof defaultModelSelectOptions>) {
+    const normalized = value.trim();
+    if (!normalized) return "";
+    const flatOptions = flattenDefaultModelOptions(options);
+    if (flatOptions.some((option) => option.value === normalized)) return normalized;
+    const model = modelNameFromOption(normalized);
+    return flatOptions.find((option) => modelNameFromOption(option.value) === model)?.value || "";
+}
+
+function modelMatchesDefaultKind(model: string, modelKey: keyof AuthSettings["defaultModels"]): boolean {
+    const lower = model.toLowerCase();
+    if (modelKey === "imageModel") return /image|img|gpt-image|dall|flux|sdxl|stable-diffusion|midjourney/.test(lower);
+    if (modelKey === "videoModel") return /video|vid|i2v|t2v|seedance|kling|sora|veo|grok-imagine/.test(lower);
+    if (modelKey === "audioModel") return /audio|speech|tts|whisper|music|voice/.test(lower);
+    return !modelMatchesDefaultKind(model, "imageModel") && !modelMatchesDefaultKind(model, "videoModel") && !modelMatchesDefaultKind(model, "audioModel");
 }
 
 function healthKindLabel(kind: ChannelHealthKind) {

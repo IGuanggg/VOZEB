@@ -7,7 +7,7 @@ import { configureServerProxyDispatcher } from "@/lib/server/proxy-dispatcher";
 import { fetchInternalApi, isInternalApiBaseUrl, resolveInternalOrigin } from "@/lib/server/internal-origin";
 import { resolveGeneratedMediaUrl } from "@/lib/media-url";
 import { toSafeGenerationErrorMessage } from "@/lib/server/generation-errors";
-import { countActiveImageTasksForUser, createImageTask, updateImageTask, type ImageTask, type ImageTaskConfig, type ImageTaskReference } from "@/lib/server/image-task-store";
+import { createImageTask, listRecoverableImageTasks, updateImageTask, type ImageTask, type ImageTaskConfig, type ImageTaskReference } from "@/lib/server/image-task-store";
 import { isGenerationSource, recordGenerationLog } from "@/lib/server/generation-log-store";
 import { writeReferenceImageDataUrl } from "@/lib/server/reference-asset-store";
 
@@ -75,7 +75,7 @@ const IMAGE_MAX_EDGE = 3840;
 const IMAGE_MAX_RATIO = 3;
 const IMAGE_OUTPUT_FORMAT = "png";
 const TASK_HEARTBEAT_MS = 30 * 1000;
-const MODEL_REQUEST_TIMEOUT_MS = 3 * 60 * 1000;
+const MODEL_REQUEST_TIMEOUT_MS = 20 * 60 * 1000;
 const IMAGE_TASK_POLL_INTERVAL_MS = 2500;
 const IMAGE_TASK_POLL_ATTEMPTS = 120;
 const MAX_INLINE_IMAGE_BYTES = 20 * 1024 * 1024;
@@ -112,19 +112,52 @@ const IMAGE_STATUS_KEYS = ["status", "state", "task_status", "taskStatus"];
 const IMAGE_POLL_URL_KEYS = ["poll_url", "pollUrl", "polling_url", "pollingUrl", "status_url", "statusUrl", "task_url", "taskUrl"];
 type ImageEditReferenceMode = "auto" | "multipart" | "json" | "public-url";
 
+type QueuedImageTask = {
+    task: ImageTask;
+    origin: string;
+    publicOrigin: string;
+    cookie: string;
+};
+
+type ImageTaskQueueState = {
+    queues: Map<string, QueuedImageTask[]>;
+    userOrder: string[];
+    cursor: number;
+    running: number;
+    runningByUser: Map<string, number>;
+    draining: boolean;
+    recovered: boolean;
+};
+
+const globalImageTaskQueue = globalThis as typeof globalThis & { __vozebImageTaskQueue?: ImageTaskQueueState };
+const imageTaskQueue = (globalImageTaskQueue.__vozebImageTaskQueue ??= {
+    queues: new Map<string, QueuedImageTask[]>(),
+    userOrder: [],
+    cursor: 0,
+    running: 0,
+    runningByUser: new Map<string, number>(),
+    draining: false,
+    recovered: false,
+});
+
 export async function POST(request: Request) {
     const currentUser = await getCurrentUser();
-    const settings = currentUser ? await getAuthSettings() : null;
-    if (currentUser && settings && countActiveImageTasksForUser(currentUser.id) >= settings.generationConcurrency.image) {
-        return NextResponse.json({ error: "当前用户生图任务已达到并发上限，请稍后再试" }, { status: 429 });
-    }
     if (!currentUser) return NextResponse.json({ error: "请先登录" }, { status: 401 });
+
+    const queueSettings = imageQueueSettings();
+    if (imageQueueLoadForUser(currentUser.id) >= queueSettings.maxQueuedPerUser) {
+        return NextResponse.json({ error: `当前用户排队任务已达到 ${queueSettings.maxQueuedPerUser} 个，请等待部分任务完成` }, { status: 429 });
+    }
 
     const body = (await request.json().catch(() => ({}))) as CreateImageTaskBody;
     const config = sanitizeConfig(body.config);
     const prompt = (body.prompt || "").trim();
     const kind = body.kind === "edit" ? "edit" : "generation";
     if (!config || !prompt) return NextResponse.json({ error: "任务参数不完整" }, { status: 400 });
+
+    const cookie = request.headers.get("cookie") || "";
+    const origin = resolveInternalOrigin(new URL(request.url).origin);
+    const publicOrigin = requestPublicOrigin(request);
 
     const task = createImageTask({
         userId: currentUser.id,
@@ -137,14 +170,104 @@ export async function POST(request: Request) {
         prompt,
         references: Array.isArray(body.references) ? body.references.filter((item) => Boolean(item?.dataUrl || item?.url || item?.remoteUrl || item?.serverUrl)) : [],
         mask: body.mask?.dataUrl || body.mask?.url || body.mask?.remoteUrl || body.mask?.serverUrl ? body.mask : undefined,
+        execution: { origin, publicOrigin, cookie },
     });
-    const cookie = request.headers.get("cookie") || "";
-    const origin = resolveInternalOrigin(new URL(request.url).origin);
-    const publicOrigin = requestPublicOrigin(request);
-    void runImageTask(task, origin, publicOrigin, cookie);
+    enqueueImageTask({ task, origin, publicOrigin, cookie });
 
     return NextResponse.json({ task: publicTask(task) });
 }
+
+function imageQueueSettings() {
+    return {
+        globalConcurrency: envInteger("VOZEB_IMAGE_GLOBAL_CONCURRENCY", 80, 1, 80),
+        perUserConcurrency: envInteger("VOZEB_IMAGE_PER_USER_CONCURRENCY", 2, 1, 10),
+        maxQueuedPerUser: envInteger("VOZEB_IMAGE_MAX_QUEUED_PER_USER", 200, 5, 500),
+    };
+}
+
+function envInteger(name: string, fallback: number, min: number, max: number) {
+    const value = Math.floor(Number(process.env[name]));
+    return Number.isFinite(value) ? Math.max(min, Math.min(max, value)) : fallback;
+}
+
+function imageQueueLoadForUser(userId: string) {
+    return (imageTaskQueue.queues.get(userId)?.length || 0) + (imageTaskQueue.runningByUser.get(userId) || 0);
+}
+
+function enqueueImageTask(item: QueuedImageTask) {
+    const userId = item.task.userId;
+    const queue = imageTaskQueue.queues.get(userId) || [];
+    queue.push(item);
+    imageTaskQueue.queues.set(userId, queue);
+    if (!imageTaskQueue.userOrder.includes(userId)) imageTaskQueue.userOrder.push(userId);
+    drainImageTaskQueue();
+}
+
+function drainImageTaskQueue() {
+    if (imageTaskQueue.draining) return;
+    imageTaskQueue.draining = true;
+    queueMicrotask(() => {
+        try {
+            const settings = imageQueueSettings();
+            while (imageTaskQueue.running < settings.globalConcurrency) {
+                const next = takeNextQueuedImageTask(settings.globalConcurrency, settings.perUserConcurrency);
+                if (!next) break;
+                const userId = next.task.userId;
+                imageTaskQueue.running += 1;
+                imageTaskQueue.runningByUser.set(userId, (imageTaskQueue.runningByUser.get(userId) || 0) + 1);
+                void runImageTask(next.task, next.origin, next.publicOrigin, next.cookie).finally(() => {
+                    imageTaskQueue.running = Math.max(0, imageTaskQueue.running - 1);
+                    const userRunning = Math.max(0, (imageTaskQueue.runningByUser.get(userId) || 1) - 1);
+                    if (userRunning) imageTaskQueue.runningByUser.set(userId, userRunning);
+                    else imageTaskQueue.runningByUser.delete(userId);
+                    pruneImageQueueUsers();
+                    drainImageTaskQueue();
+                });
+            }
+        } finally {
+            imageTaskQueue.draining = false;
+        }
+    });
+}
+
+function takeNextQueuedImageTask(globalConcurrency: number, minimumPerUserConcurrency: number) {
+    pruneImageQueueUsers();
+    const order = imageTaskQueue.userOrder;
+    if (!order.length) return null;
+    const activeUsers = new Set<string>([
+        ...order.filter((userId) => (imageTaskQueue.queues.get(userId)?.length || 0) > 0),
+        ...Array.from(imageTaskQueue.runningByUser.keys()),
+    ]).size;
+    const fairUserLimit = activeUsers <= 1 ? globalConcurrency : Math.max(minimumPerUserConcurrency, Math.ceil(globalConcurrency / activeUsers));
+
+    for (let offset = 0; offset < order.length; offset += 1) {
+        const index = (imageTaskQueue.cursor + offset) % order.length;
+        const userId = order[index];
+        const queue = imageTaskQueue.queues.get(userId);
+        if (!queue?.length || (imageTaskQueue.runningByUser.get(userId) || 0) >= fairUserLimit) continue;
+        const item = queue.shift() || null;
+        imageTaskQueue.cursor = order.length ? (index + 1) % order.length : 0;
+        return item;
+    }
+    return null;
+}
+
+function pruneImageQueueUsers() {
+    imageTaskQueue.userOrder = imageTaskQueue.userOrder.filter((userId) => (imageTaskQueue.queues.get(userId)?.length || 0) > 0 || (imageTaskQueue.runningByUser.get(userId) || 0) > 0);
+    imageTaskQueue.cursor = imageTaskQueue.userOrder.length ? imageTaskQueue.cursor % imageTaskQueue.userOrder.length : 0;
+}
+
+function resumePersistedImageTasks() {
+    if (imageTaskQueue.recovered) return;
+    imageTaskQueue.recovered = true;
+    for (const task of listRecoverableImageTasks()) {
+        const execution = task.execution;
+        if (!execution) continue;
+        enqueueImageTask({ task, ...execution });
+    }
+}
+
+resumePersistedImageTasks();
 
 async function runImageTask(task: ImageTask, origin: string, publicOrigin: string, cookie: string) {
     updateImageTask(task.id, { status: "running" });
@@ -167,10 +290,11 @@ async function runImageTask(task: ImageTask, origin: string, publicOrigin: strin
             status: "success",
             result: { dataUrl: safeResult.dataUrl, remoteUrl: asset?.remoteUrl || safeResult.remoteUrl, serverUrl: imageServerFallback ? asset?.serverUrl : undefined },
             pointsRemaining: result.pointsRemaining,
+            execution: undefined,
         });
     } catch (error) {
         const message = toSafeGenerationErrorMessage(error, "图片生成失败");
-        updateImageTask(task.id, { status: "error", error: message });
+        updateImageTask(task.id, { status: "error", error: message, execution: undefined });
         await writeImageGenerationLog(task, "failed", "", Date.now() - task.createdAt, message).catch((logError) => {
             console.error("Image generation failure log write failed", logError);
         });

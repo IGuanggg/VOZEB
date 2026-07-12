@@ -38,7 +38,7 @@ export type ImageQuickToolsConfig = {
     showLabels: boolean;
 };
 
-export const IMAGE_QUICK_TOOLS_STORAGE_KEY = "canvas-image-quick-tools-v6";
+export const IMAGE_QUICK_TOOLS_STORAGE_KEY = "canvas-image-quick-tools-v7";
 
 const defaultBaseToolIds: ImageQuickToolId[] = ["info", "delete", "saveAsset", "download", "edit"];
 
@@ -110,18 +110,18 @@ export const imageToolDefinitions: ImageToolDefinition[] = [
     {
         id: "upscale",
         defaultVisible: true,
-        panelLabel: "放大",
-        label: "放大",
-        title: "放大图片分辨率",
+        panelLabel: "快速放大",
+        label: "快速放大",
+        title: "使用本地插值快速放大图片",
         icon: () => <ZoomIn className="size-4" />,
         run: (node, handlers) => handlers.onUpscale(node),
     },
     {
         id: "superResolve",
-        defaultVisible: false,
-        panelLabel: "超分放大",
-        label: "超分放大",
-        title: "使用高清放大生成更高分辨率图片",
+        defaultVisible: true,
+        panelLabel: "AI 超清",
+        label: "AI 超清",
+        title: "使用本地 AI 增强图片细节",
         icon: () => <Sparkles className="size-4" />,
         run: (node, handlers) => handlers.onSuperResolve(node),
     },

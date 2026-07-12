@@ -10,13 +10,13 @@ export async function POST(request: Request) {
     const currentUser = await getCurrentUser();
     if (!currentUser) return NextResponse.json({ error: "请先登录" }, { status: 401 });
 
-    const body = (await request.json().catch(() => ({}))) as { dataUrl?: unknown; type?: unknown };
+    const body = (await request.json().catch(() => ({}))) as { dataUrl?: unknown; type?: unknown; persistent?: unknown };
     const dataUrl = typeof body.dataUrl === "string" ? body.dataUrl : "";
     if (!dataUrl) return NextResponse.json({ error: "缺少参考图" }, { status: 400 });
     if (body.type && body.type !== "image") return NextResponse.json({ error: "当前仅支持参考图临时地址" }, { status: 400 });
 
     try {
-        const asset = await writeReferenceImageDataUrl(dataUrl);
+        const asset = await writeReferenceImageDataUrl(dataUrl, { persistent: body.persistent === true });
         return NextResponse.json({
             url: `${publicOrigin(request)}/api/reference-assets/${asset.token}`,
             token: asset.token,
