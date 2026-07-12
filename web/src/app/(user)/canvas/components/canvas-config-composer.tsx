@@ -7,6 +7,7 @@ import { FileText, Image as ImageIcon, Music2, Video, X } from "lucide-react";
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { canvasReferenceToken, type CanvasReferenceRole } from "../utils/canvas-resource-mention-tokens";
 import type { NodeGenerationInput } from "./canvas-node-generation";
 
 type CanvasConfigComposerProps = {
@@ -16,13 +17,13 @@ type CanvasConfigComposerProps = {
     onClose: () => void;
 };
 
-type Token = { type: "text"; value: string } | { type: "reference"; nodeId: string };
+type Token = { type: "text"; value: string } | { type: "reference"; nodeId: string; role: CanvasReferenceRole };
 
 type MentionState = {
     query: string;
 };
 
-export const CONFIG_REFERENCE_PATTERN = /@\[node:([^\]]+)\]/g;
+export const CONFIG_REFERENCE_PATTERN = /@\[node:([^;\]]+)(?:;role:(target|reference|subject|style|composition))?\]/g;
 
 export function CanvasConfigComposer({ value, inputs, onChange, onClose }: CanvasConfigComposerProps) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -51,7 +52,7 @@ export function CanvasConfigComposer({ value, inputs, onChange, onClose }: Canva
                 return;
             }
             const input = referenceById.get(token.nodeId);
-            if (input) editor.append(createReferenceChip(input, inputs, theme, setImagePreview));
+            if (input) editor.append(createReferenceChip(input, inputs, theme, setImagePreview, token.role));
         });
     }, [inputs, referenceById, theme, tokens]);
 
@@ -245,10 +246,11 @@ function ResourcePreview({ input }: { input: NodeGenerationInput }) {
     );
 }
 
-function createReferenceChip(input: NodeGenerationInput, inputs: NodeGenerationInput[], theme: (typeof canvasThemes)[keyof typeof canvasThemes], onImagePreview: (url: string) => void) {
+function createReferenceChip(input: NodeGenerationInput, inputs: NodeGenerationInput[], theme: (typeof canvasThemes)[keyof typeof canvasThemes], onImagePreview: (url: string) => void, role: CanvasReferenceRole = "reference") {
     const wrapper = document.createElement("span");
     wrapper.contentEditable = "false";
     wrapper.dataset.referenceNodeId = input.nodeId;
+    wrapper.dataset.referenceRole = role;
     wrapper.className = "mx-px inline-flex h-7 max-w-40 items-center justify-center overflow-hidden rounded-md border px-1 text-xs leading-none align-middle";
     Object.assign(wrapper.style, chipStyle(theme));
     if (input.type === "image" && input.image) {
@@ -283,7 +285,7 @@ function serializeNodes(nodes: NodeListOf<ChildNode>) {
         if (node.nodeType === Node.TEXT_NODE) result += node.textContent || "";
         if (!(node instanceof HTMLElement)) return;
         const nodeId = node.dataset.referenceNodeId;
-        if (nodeId) result += `@[node:${nodeId}]`;
+        if (nodeId) result += canvasReferenceToken(nodeId, (node.dataset.referenceRole as CanvasReferenceRole | undefined) || "reference");
         else if (node.tagName === "BR") result += "\n";
         else result += serializeNodes(node.childNodes);
     });
@@ -365,7 +367,7 @@ function parseComposerTokens(value: string): Token[] {
     for (const match of value.matchAll(CONFIG_REFERENCE_PATTERN)) {
         if (match.index === undefined) continue;
         if (match.index > lastIndex) tokens.push({ type: "text", value: value.slice(lastIndex, match.index) });
-        tokens.push({ type: "reference", nodeId: match[1] });
+        tokens.push({ type: "reference", nodeId: match[1], role: (match[2] as CanvasReferenceRole | undefined) || "reference" });
         lastIndex = match.index + match[0].length;
     }
     if (lastIndex < value.length) tokens.push({ type: "text", value: value.slice(lastIndex) });

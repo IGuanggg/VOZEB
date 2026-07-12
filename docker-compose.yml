@@ -1,6 +1,6 @@
 services:
   app:
-    image: ${VOZEB_IMAGE:-vozeb:mobile-canvas-upscale-r14}
+    image: ${VOZEB_IMAGE:-vozeb:reference-composer-r15}
     container_name: vozeb
     ports:
       - "${VOZEB_BIND_HOST:-0.0.0.0}:3020:3000"

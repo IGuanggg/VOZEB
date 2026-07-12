@@ -9,6 +9,7 @@ import { CreditSymbol, formatCreditAmount, requestCreditCost } from "@/constant/
 import { defaultConfig, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { stripCanvasReferenceTokens } from "../utils/canvas-resource-mention-tokens";
 import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
 import { CanvasPromptLibrary } from "./canvas-prompt-library";
 import { CanvasAudioSettingsPopover, type CanvasAudioSettingKey } from "./canvas-audio-settings-popover";
@@ -63,7 +64,8 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
 
     const submit = () => {
         const text = prompt.trim();
-        if (!text || isRunning) return;
+        const visibleText = stripCanvasReferenceTokens(text).trim();
+        if (!visibleText || isRunning) return;
         onGenerate(node.id, mode, text);
         setPrompt("");
     };
@@ -81,7 +83,9 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                 references={mentionReferences}
                 onChange={updatePrompt}
                 onSubmit={submit}
-                className="thin-scrollbar h-24 w-full resize-none rounded-xl border px-3 py-2 text-sm leading-5 outline-none"
+                inlineReferences
+                targetNodeId={hasImageContent ? node.id : undefined}
+                className="thin-scrollbar h-28 w-full overflow-y-auto whitespace-pre-wrap break-words rounded-xl border px-3 py-2 text-sm leading-7 outline-none"
                 style={{ background: theme.node.fill, borderColor: theme.node.stroke, color: theme.node.text }}
                 placeholder={promptPlaceholder(mode, hasImageContent, hasTextContent)}
             />
@@ -127,7 +131,7 @@ export function CanvasNodePromptPanel({ node, isRunning, onPromptChange, onConfi
                     type="primary"
                     className="canvas-generate-button !h-10 !min-w-16 shrink-0 !rounded-full !px-3"
                     danger={isRunning}
-                    disabled={!isRunning && !prompt.trim()}
+                    disabled={!isRunning && !stripCanvasReferenceTokens(prompt).trim()}
                     onClick={() => (isRunning ? onStop(node.id) : submit())}
                     aria-label={isRunning ? "停止生成" : "生成"}
                 >

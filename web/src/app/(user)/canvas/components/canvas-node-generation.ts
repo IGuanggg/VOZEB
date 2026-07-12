@@ -4,7 +4,7 @@ import { seedanceReferenceLabel } from "@/lib/seedance-video";
 import type { ReferenceImage } from "@/types/image";
 import type { ReferenceAudio, ReferenceVideo } from "@/types/media";
 import { CanvasNodeType, type CanvasConnection, type CanvasNodeData } from "../types";
-import { hasCanvasReferenceToken } from "../utils/canvas-resource-mention-tokens";
+import { hasCanvasReferenceToken, parseCanvasReferenceTokens, parseExcludedCanvasReferenceNodeIds, type CanvasReferenceRole } from "../utils/canvas-resource-mention-tokens";
 import { getGenerationResourceNodes } from "../utils/canvas-resource-references";
 
 export type NodeGenerationContext = {
@@ -32,7 +32,9 @@ export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData
     const inputs = buildNodeGenerationInputs(nodeId, nodes, connections);
     const sourceNode = nodes.find((node) => node.id === nodeId);
     if ((sourceNode?.type === CanvasNodeType.Config && Boolean(sourceNode.metadata?.composerContent?.trim())) || hasCanvasReferenceToken(prompt)) {
-        return buildComposerGenerationContext(inputs, prompt);
+        const sourceInput = sourceNode ? generationInputFromNode(sourceNode) : null;
+        const composerInputs = sourceInput && !inputs.some((input) => input.nodeId === sourceInput.nodeId) ? [sourceInput, ...inputs] : inputs;
+        return buildComposerGenerationContext(composerInputs, prompt);
     }
 
     const upstreamText = inputs
@@ -56,51 +58,44 @@ export function buildNodeGenerationContext(nodeId: string, nodes: CanvasNodeData
 }
 
 function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: string): NodeGenerationContext {
-    const inputByNodeId = new Map(inputs.map((input) => [input.nodeId, input]));
-    const selectedInputs: NodeGenerationInput[] = [];
+    const excludedNodeIds = new Set(parseExcludedCanvasReferenceNodeIds(prompt));
+    const availableInputs = inputs.filter((input, index) => !excludedNodeIds.has(input.nodeId) && inputs.findIndex((candidate) => candidate.nodeId === input.nodeId) === index);
+    const inputByNodeId = new Map(availableInputs.map((input) => [input.nodeId, input]));
     const labelByNodeId = new Map<string, string>();
     const textBlocks: string[] = [];
     const counts = { image: 0, video: 0, audio: 0, text: 0 };
-    let hasToken = false;
-    let lastIndex = 0;
-    let nextPrompt = "";
+    availableInputs.forEach((input) => {
+        const label = generationLabel(input.type, counts[input.type]++);
+        labelByNodeId.set(input.nodeId, label);
+        if (input.type === "text") textBlocks.push(`【${label}】\n${input.text || ""}`);
+    });
 
-    for (const match of prompt.matchAll(/@\[node:([^\]]+)\]/g)) {
-        if (match.index === undefined) continue;
-        hasToken = true;
-        nextPrompt += prompt.slice(lastIndex, match.index);
-        const input = inputByNodeId.get(match[1]);
-        if (input) {
-            let label = labelByNodeId.get(input.nodeId);
-            if (!label) {
-                label = generationLabel(input.type, counts[input.type]++);
-                labelByNodeId.set(input.nodeId, label);
-                if (input.type === "text") textBlocks.push(`【${label}】\n${input.text || ""}`);
-                else selectedInputs.push(input);
-            }
-            nextPrompt += input.type === "text" ? `【${label}】` : label;
-        }
-        lastIndex = match.index + match[0].length;
-    }
+    const roleLabels = new Map<CanvasReferenceRole, string[]>();
+    parseCanvasReferenceTokens(prompt).forEach((token) => {
+        const label = labelByNodeId.get(token.nodeId);
+        if (!label) return;
+        const labels = roleLabels.get(token.role) || [];
+        if (!labels.includes(label)) labels.push(label);
+        roleLabels.set(token.role, labels);
+    });
 
-    nextPrompt += prompt.slice(lastIndex);
-    if (textBlocks.length) nextPrompt = `${nextPrompt.trim()}\n\n${textBlocks.join("\n\n")}`;
-    const referenceImages = selectedInputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
-    const referenceVideos = selectedInputs.map((input) => input.video).filter((video): video is ReferenceVideo => Boolean(video));
-    const referenceAudios = selectedInputs.map((input) => input.audio).filter((audio): audio is ReferenceAudio => Boolean(audio));
+    let nextPrompt = prompt
+        .replace(/@\[node:([^;\]]+)(?:;role:(?:target|reference|subject|style|composition))?\]/g, (_token, nodeId: string) => {
+            const input = inputByNodeId.get(nodeId);
+            const label = labelByNodeId.get(nodeId);
+            if (!input || !label) return "";
+            return input.type === "text" ? `【${label}】` : label;
+        })
+        .replace(/@\[exclude:[^\]]+\]/g, "")
+        .trim();
 
-    if (!hasToken) {
-        return {
-            prompt,
-            referenceImages: [],
-            referenceVideos: [],
-            referenceAudios: [],
-            textCount: 0,
-            imageCount: 0,
-            videoCount: 0,
-            audioCount: 0,
-        };
-    }
+    const roleSummary = Array.from(roleLabels.entries()).map(([role, labels]) => `${generationRoleLabel(role)}：${labels.join("、")}`);
+    if (roleSummary.length) nextPrompt = `${roleSummary.join("\n")}\n\n用户要求：\n${nextPrompt}`;
+    if (textBlocks.length) nextPrompt = `${nextPrompt}\n\n${textBlocks.join("\n\n")}`.trim();
+
+    const referenceImages = availableInputs.map((input) => input.image).filter((image): image is ReferenceImage => Boolean(image));
+    const referenceVideos = availableInputs.map((input) => input.video).filter((video): video is ReferenceVideo => Boolean(video));
+    const referenceAudios = availableInputs.map((input) => input.audio).filter((audio): audio is ReferenceAudio => Boolean(audio));
 
     return {
         prompt: nextPrompt,
@@ -116,16 +111,21 @@ function buildComposerGenerationContext(inputs: NodeGenerationInput[], prompt: s
 
 export function buildNodeGenerationInputs(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]): NodeGenerationInput[] {
     return getGenerationResourceNodes(nodeId, nodes, connections).flatMap((node): NodeGenerationInput[] => {
-        const image = readReferenceImage(node);
-        if (image) return [{ nodeId: node.id, type: "image" as const, title: node.title, image }];
-        const video = readReferenceVideo(node);
-        if (video) return [{ nodeId: node.id, type: "video" as const, title: node.title, video }];
-        const audio = readReferenceAudio(node);
-        if (audio) return [{ nodeId: node.id, type: "audio" as const, title: node.title, audio }];
-        const text = readNodeTextInput(node);
-        if (text) return [{ nodeId: node.id, type: "text" as const, title: node.title, text }];
-        return [];
+        const input = generationInputFromNode(node);
+        return input ? [input] : [];
     });
+}
+
+function generationInputFromNode(node: CanvasNodeData): NodeGenerationInput | null {
+    const image = readReferenceImage(node);
+    if (image) return { nodeId: node.id, type: "image", title: node.title, image };
+    const video = readReferenceVideo(node);
+    if (video) return { nodeId: node.id, type: "video", title: node.title, video };
+    const audio = readReferenceAudio(node);
+    if (audio) return { nodeId: node.id, type: "audio", title: node.title, audio };
+    const text = readNodeTextInput(node);
+    if (text) return { nodeId: node.id, type: "text", title: node.title, text };
+    return null;
 }
 
 export function buildNodeResponseMessages(context: NodeGenerationContext): AiTextMessage[] {
@@ -156,6 +156,14 @@ function generationLabel(type: NodeGenerationInput["type"], index: number) {
     if (type === "video") return seedanceReferenceLabel("video", index);
     if (type === "audio") return seedanceReferenceLabel("audio", index);
     return `文本${index + 1}`;
+}
+
+function generationRoleLabel(role: CanvasReferenceRole) {
+    if (role === "target") return "修改目标";
+    if (role === "subject") return "主体参考";
+    if (role === "style") return "风格参考";
+    if (role === "composition") return "构图参考";
+    return "参考素材";
 }
 
 function readReferenceImage(node: CanvasNodeData): ReferenceImage | null {

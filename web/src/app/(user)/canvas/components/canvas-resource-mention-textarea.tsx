@@ -7,6 +7,7 @@ import { Check, FileText, Image as ImageIcon, Music2, Video, X } from "lucide-re
 
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { CanvasInlineReferenceComposer } from "./canvas-inline-reference-composer";
 import { composeCanvasReferenceValue, parseCanvasReferenceNodeIds, stripCanvasReferenceTokens } from "../utils/canvas-resource-mention-tokens";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
 
@@ -21,10 +22,12 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "onChange" | "val
     onChange: (value: string) => void;
     onSubmit?: () => void;
     containerClassName?: string;
+    inlineReferences?: boolean;
+    targetNodeId?: string;
 };
 
 export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Props>(function CanvasResourceMentionTextarea(
-    { value, references, onChange, onSubmit, onKeyDown, className, containerClassName, style, ...props },
+    { value, references, onChange, onSubmit, onKeyDown, className, containerClassName, style, inlineReferences, targetNodeId, ...props },
     forwardedRef,
 ) {
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
@@ -101,6 +104,22 @@ export const CanvasResourceMentionTextarea = forwardRef<HTMLTextAreaElement, Pro
             onSelect={insertReference}
         />
     ) : null;
+
+    if (inlineReferences) {
+        return (
+            <CanvasInlineReferenceComposer
+                value={value}
+                references={references}
+                onChange={onChange}
+                onSubmit={onSubmit}
+                className={className}
+                containerClassName={containerClassName}
+                style={style}
+                placeholder={typeof props.placeholder === "string" ? props.placeholder : undefined}
+                targetNodeId={targetNodeId}
+            />
+        );
+    }
 
     return (
         <div className={`flex h-full min-h-0 w-full flex-col ${containerClassName || ""}`}>

@@ -23,7 +23,9 @@ export function buildCanvasResourceReferences(nodes: CanvasNodeData[], connectio
 }
 
 export function buildNodeMentionReferences(node: CanvasNodeData, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
-    return labelResourceNodes(getMentionResourceNodes(node.id, nodes, connections), true);
+    const mentionNodes = getMentionResourceNodes(node.id, nodes, connections);
+    const resourceNodes = isResourceNode(node) ? [node, ...mentionNodes.filter((item) => item.id !== node.id)] : mentionNodes;
+    return labelResourceNodes(resourceNodes, true);
 }
 
 export function getMentionResourceNodes(nodeId: string, nodes: CanvasNodeData[], connections: CanvasConnection[]) {
