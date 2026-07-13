@@ -180,7 +180,7 @@ export function DirectorDeskHost({
             />
             <button
                 type="button"
-                className="absolute right-3 top-3 z-20 grid size-9 place-items-center rounded-md border border-white/15 bg-black/45 text-white/80 backdrop-blur transition hover:bg-black/70 hover:text-white"
+                className={`absolute right-3 top-3 z-20 grid size-11 place-items-center rounded-md border border-white/15 bg-black/45 text-white/80 backdrop-blur transition hover:bg-black/70 hover:text-white ${ready ? "min-[921px]:hidden" : ""}`}
                 onClick={onClose}
                 title="关闭导演台"
                 aria-label="关闭导演台"

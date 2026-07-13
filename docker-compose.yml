@@ -1,6 +1,6 @@
 services:
   app:
-    image: ${VOZEB_IMAGE:-vozeb:libtv-reference-r16}
+    image: ${VOZEB_IMAGE:-vozeb:director-close-r17}
     container_name: vozeb
     ports:
       - "${VOZEB_BIND_HOST:-0.0.0.0}:3020:3000"
